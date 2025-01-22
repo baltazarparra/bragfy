@@ -1,4 +1,4 @@
-# Bragfy
+# soluções inteligentes para profissionais que desejam otimizar sua produtividade
 
 ## Descrição da Empresa
 A **Bragfy** é uma empresa inovadora que desenvolve soluções inteligentes para profissionais que desejam otimizar sua produtividade e organização. Nosso principal produto é um **assistente no WhatsApp** que coleta e organiza as atividades profissionais realizadas durante o dia, transformando-as em um **Brag Document** (documento de conquistas) personalizado. 
