@@ -26,7 +26,7 @@ body {
 
 /* Títulos */
 h1 {
-    font-size: 2.5em;
+    font-size: 3em;
     margin-bottom: 20px;
     color: #000;
     border-bottom: 2px solid #ddd;
@@ -34,7 +34,7 @@ h1 {
 }
 
 h2 {
-    font-size: 2em;
+    font-size: 1.6em;
     margin-top: 30px;
     margin-bottom: 15px;
     color: #222;
