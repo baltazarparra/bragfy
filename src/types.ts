@@ -1,7 +1,7 @@
 // Remover a importação: import { Activity } from "@prisma/client";
 
 // Defina o tipo Activity manualmente
-interface Activity {
+export interface Activity {
   id: string;
   telegramUserId: number;
   message: string;

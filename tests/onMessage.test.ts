@@ -8,6 +8,22 @@ vi.mock("../src/utils/extractTime", () => ({
   extractTime: vi.fn()
 }));
 
+// Mock do formatTimestamp
+vi.mock("../src/utils/formatTimestamp", () => ({
+  formatTimestamp: vi.fn((date) => {
+    return date instanceof Date
+      ? `${String(date.getDate()).padStart(2, "0")}/${String(
+          date.getMonth() + 1
+        ).padStart(2, "0")}/${String(date.getFullYear()).slice(-2)} ${String(
+          date.getHours()
+        ).padStart(2, "0")}:${String(date.getMinutes()).padStart(
+          2,
+          "0"
+        )}:${String(date.getSeconds()).padStart(2, "0")}`
+      : "01/01/01 00:00:00";
+  })
+}));
+
 // Mock do cliente Prisma
 vi.mock("../src/db", () => ({
   default: {
@@ -19,6 +35,7 @@ vi.mock("../src/db", () => ({
 
 // Import do mock do Prisma
 import prisma from "../src/db";
+import { formatTimestamp } from "../src/utils/formatTimestamp";
 
 describe("handleMessage", () => {
   // Data fixa para testes
@@ -102,10 +119,15 @@ describe("handleMessage", () => {
       }
     });
 
-    // Verifica se o bot enviou a mensagem de confirmação com horário
+    // Verifica se o formatTimestamp foi chamado com o horário extraído
+    expect(formatTimestamp).toHaveBeenCalledWith(fixedExtractedTime);
+
+    // Verifica se o bot enviou a mensagem de confirmação com o formato padronizado
     expect(mockBot.sendMessage).toHaveBeenCalledWith(
       456,
-      expect.stringContaining("✅ Atividade registrada para")
+      expect.stringMatching(
+        /^✅ Atividade registrada para \d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/
+      )
     );
   });
 
@@ -144,10 +166,15 @@ describe("handleMessage", () => {
       }
     });
 
-    // Verifica se o bot enviou a mensagem de confirmação sem horário
+    // Verifica se o formatTimestamp foi chamado com a data da mensagem
+    expect(formatTimestamp).toHaveBeenCalledWith(fixedDate);
+
+    // Verifica se o bot enviou a mensagem de confirmação com o formato padronizado
     expect(mockBot.sendMessage).toHaveBeenCalledWith(
       456,
-      "✅ Atividade registrada"
+      expect.stringMatching(
+        /^✅ Atividade registrada para \d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/
+      )
     );
   });
 
