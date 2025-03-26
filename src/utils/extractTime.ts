@@ -13,11 +13,36 @@ export function extractTime(
   message: string,
   referenceDate: Date = new Date()
 ): TimeExtractionResult {
-  // Patterns para identificar horários em diferentes formatos
+  // Verifica primeiro o padrão "às" ou "as" seguido de horário
+  const horaComAsPattern = /\s+(às|as)\s+\d{1,2}h(\d{1,2})?/i;
+  const matchHoraComAs = message.match(horaComAsPattern);
+
+  if (matchHoraComAs) {
+    // Extrair as informações do horário
+    const horaPattern = /(\d{1,2})h(\d{1,2})?/i;
+    const horaMatch = matchHoraComAs[0].match(horaPattern);
+
+    if (horaMatch) {
+      const hours = parseInt(horaMatch[1], 10);
+      const minutes = horaMatch[2] ? parseInt(horaMatch[2], 10) : 0;
+      const date = new Date(referenceDate);
+      date.setHours(hours, minutes, 0, 0);
+
+      // Remover toda a expressão com o "às" ou "as"
+      const cleanMessage = message.replace(matchHoraComAs[0], "").trim();
+
+      return {
+        extractedTime: date,
+        cleanMessage
+      };
+    }
+  }
+
+  // Outros padrões de horário (sem o "às" ou "as")
   const patterns = [
-    // "às 10h", "as 10h", "10h"
+    // "10h", "10h30"
     {
-      regex: /\b(?:(?:à|a)s\s+)?(\d{1,2})h(?:(\d{1,2})(?:min)?)?/i,
+      regex: /\b(\d{1,2})h(\d{1,2})?/i,
       parse: (matches: RegExpMatchArray) => {
         const hours = parseInt(matches[1], 10);
         const minutes = matches[2] ? parseInt(matches[2], 10) : 0;
@@ -47,7 +72,7 @@ export function extractTime(
     const match = message.match(pattern.regex);
     if (match) {
       extractedTime = pattern.parse(match);
-      // Remove o padrão de horário da mensagem para deixá-la mais limpa
+      // Remove o padrão de horário da mensagem
       cleanMessage = message.replace(match[0], "").trim();
       break;
     }
@@ -55,6 +80,6 @@ export function extractTime(
 
   return {
     extractedTime,
-    cleanMessage: cleanMessage
+    cleanMessage
   };
 }
