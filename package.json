@@ -1,0 +1,35 @@
+{
+  "name": "bragfy",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/bot.ts",
+    "build": "tsc",
+    "start": "node dist/bot.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.5.0",
+    "date-fns": "^2.30.0",
+    "dotenv": "^16.3.1",
+    "fastify": "^4.25.2",
+    "node-telegram-bot-api": "^0.64.0",
+    "puppeteer": "^21.7.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "@types/node-telegram-bot-api": "^0.63.1",
+    "@types/uuid": "^9.0.7",
+    "prisma": "6.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.3"
+  }
+}
