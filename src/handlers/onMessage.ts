@@ -1,6 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import prisma from "../db";
 import { extractTime } from "../utils/extractTime";
+import { formatTimestamp } from "../utils/formatTimestamp";
 
 /**
  * Manipula mensagens de texto recebidas
@@ -43,17 +44,11 @@ export async function handleMessage(
       }
     });
 
-    // Confirma o registro da atividade
-    let confirmationMessage = "✅ Atividade registrada";
+    // Formata o timestamp usando o utilitário formatTimestamp
+    const formattedTime = formatTimestamp(timestamp);
 
-    // Se um horário foi extraído, informa ao usuário
-    if (extractedTime) {
-      const timeStr = extractedTime.toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit"
-      });
-      confirmationMessage += ` para ${timeStr}`;
-    }
+    // Constrói a mensagem de confirmação com formato padronizado
+    const confirmationMessage = `✅ Atividade registrada para ${formattedTime}`;
 
     await bot.sendMessage(chatId, confirmationMessage);
   } catch (error) {
