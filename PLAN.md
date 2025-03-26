@@ -122,7 +122,7 @@ If any step fails validation, fix it before proceeding.
 ## 🔐 Environment
 
 - `.env` should include:  
-  `BOT_TOKEN=7901892471:AAHLPwqHqy-_u5m6qyGfhTj1jm4k7kpiV0U`
+  `BOT_TOKEN=token`
 
 - Use polling (not webhook) for development
 - Optional: Use `ngrok` if webhook testing is desired later
