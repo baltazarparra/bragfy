@@ -1,5 +1,10 @@
 import TelegramBot from "node-telegram-bot-api";
-import { userExists, createUser } from "../utils/userUtils";
+import {
+  userExists,
+  createUser,
+  getUserByTelegramId
+} from "../utils/userUtils";
+import { createActivity, formatTimestamp } from "../utils/activityUtils";
 
 /**
  * Mapeia fontes de tráfego para mensagens personalizadas
@@ -84,6 +89,7 @@ export const handleNewChat = async (
   try {
     const chatId = msg.chat.id;
     const telegramUser = msg.from;
+    const messageText = msg.text || "";
 
     if (!telegramUser) {
       bot.sendMessage(
@@ -103,8 +109,109 @@ export const handleNewChat = async (
         `Olá, ${telegramUser.first_name}! Parece que é sua primeira vez aqui.\n\n` +
           "Por favor, use o comando /start para se cadastrar no Bragfy."
       );
+      return;
     }
+
+    // Repete a mensagem para o usuário e oferece opções
+    const options = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Confirmar", callback_data: `confirm:${messageText}` },
+            { text: "✏️ Editar", callback_data: "edit" },
+            { text: "❌ Cancelar", callback_data: "cancel" }
+          ]
+        ]
+      }
+    };
+
+    console.log(`Usuário ${telegramUser.id} enviou mensagem: "${messageText}"`);
+
+    bot.sendMessage(
+      chatId,
+      `Recebi sua atividade:\n\n"${messageText}"\n\nDeseja confirmar, editar ou cancelar?`,
+      options
+    );
   } catch (error) {
     console.error("Erro ao processar nova mensagem:", error);
+  }
+};
+
+/**
+ * Handler para callbacks de botões inline
+ */
+export const handleCallbackQuery = async (
+  bot: TelegramBot,
+  callbackQuery: TelegramBot.CallbackQuery
+) => {
+  try {
+    if (!callbackQuery.message || !callbackQuery.from) {
+      console.error("Dados de callback incompletos");
+      return;
+    }
+
+    const chatId = callbackQuery.message.chat.id;
+    const messageId = callbackQuery.message.message_id;
+    const data = callbackQuery.data || "";
+    const telegramUser = callbackQuery.from;
+
+    console.log(`Callback recebido: ${data} do usuário ${telegramUser.id}`);
+
+    // Processa as diferentes ações de callback
+    if (data.startsWith("confirm:")) {
+      // Extrai o conteúdo da mensagem do callback_data
+      const content = data.substring(8);
+
+      // Busca o usuário no banco
+      const user = await getUserByTelegramId(telegramUser.id);
+
+      if (!user) {
+        bot.sendMessage(chatId, "Erro: Usuário não encontrado.");
+        return;
+      }
+
+      // Salva a atividade
+      const activity = await createActivity(user.id, content);
+
+      // Formata e exibe o timestamp
+      const timestamp = formatTimestamp(activity.date);
+
+      // Responde ao usuário
+      bot.editMessageText(
+        `✅ Atividade registrada com sucesso!\n\nID: ${activity.id}\nData: ${timestamp}\n\nConteúdo:\n"${content}"`,
+        {
+          chat_id: chatId,
+          message_id: messageId
+        }
+      );
+
+      console.log(`Atividade ${activity.id} criada para o usuário ${user.id}`);
+    } else if (data === "edit") {
+      bot.editMessageText("✏️ Por favor, envie sua mensagem corrigida.", {
+        chat_id: chatId,
+        message_id: messageId
+      });
+
+      console.log(`Usuário ${telegramUser.id} solicitou edição`);
+    } else if (data === "cancel") {
+      bot.editMessageText("❌ Registro de atividade cancelado.", {
+        chat_id: chatId,
+        message_id: messageId
+      });
+
+      console.log(`Usuário ${telegramUser.id} cancelou atividade`);
+    }
+
+    // Responde ao callback para remover o indicador de carregamento no cliente
+    bot.answerCallbackQuery(callbackQuery.id);
+  } catch (error) {
+    console.error("Erro ao processar callback:", error);
+
+    if (callbackQuery.message) {
+      bot.sendMessage(
+        callbackQuery.message.chat.id,
+        "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente."
+      );
+    }
   }
 };

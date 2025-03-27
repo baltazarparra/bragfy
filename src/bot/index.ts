@@ -1,5 +1,9 @@
 import TelegramBot from "node-telegram-bot-api";
-import { handleStartCommand, handleNewChat } from "./commands";
+import {
+  handleStartCommand,
+  handleNewChat,
+  handleCallbackQuery
+} from "./commands";
 
 // Inicializa o bot
 export const initBot = (token: string): TelegramBot => {
@@ -21,6 +25,11 @@ export const initBot = (token: string): TelegramBot => {
 
     // Processa nova mensagem
     handleNewChat(bot, msg);
+  });
+
+  // Registra handler para callbacks de botões inline
+  bot.on("callback_query", (query) => {
+    handleCallbackQuery(bot, query);
   });
 
   // Trata erros
