@@ -46,8 +46,7 @@ export const handleStartCommand = async (
       // Usuário já cadastrado - mantém a mensagem padrão de reentrada
       bot.sendMessage(
         chatId,
-        `Olá novamente, ${telegramUser.first_name}! Você já está cadastrado no Bragfy.\n\n` +
-          "Use /activity para registrar uma nova atividade profissional."
+        `Olá novamente, ${telegramUser.first_name}! Você já está cadastrado no Bragfy.`
       );
     } else {
       // Novo usuário, vamos cadastrar
@@ -61,8 +60,7 @@ export const handleStartCommand = async (
       }
 
       welcomeMessage +=
-        "Estou aqui para ajudar você a registrar suas conquistas profissionais e gerar um Brag Document em PDF facilmente.\n\n" +
-        "Para começar, use /activity para registrar sua primeira atividade profissional.";
+        "Estou aqui para ajudar você a registrar suas conquistas profissionais e gerar um Brag Document em PDF facilmente.";
 
       // Envia mensagem de boas-vindas personalizada
       bot.sendMessage(chatId, welcomeMessage, { parse_mode: "Markdown" });
