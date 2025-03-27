@@ -1,6 +1,6 @@
 # Bragfy 🚀
 
-Um bot do Telegram que ajuda profissionais a registrar suas realizações diárias e gerar um "Brag Document" em PDF - um documento que destaca suas conquistas profissionais para avaliações, promoções ou portfólio.
+Um bot do Telegram que ajuda profissionais a registrar suas realizações diárias e gerar um "Brag Document" em Markdown ou PDF - um documento que destaca suas conquistas profissionais para avaliações, promoções ou portfólio.
 
 ## O que é um Brag Document?
 
@@ -16,7 +16,9 @@ Um Brag Document (ou "Documento de Conquistas") é uma prática recomendada para
 - **Registro simplificado**: Envie mensagens diretamente pelo Telegram
 - **Confirmação interativa**: Confirme, edite ou cancele registros via botões
 - **Armazenamento seguro**: Suas atividades são armazenadas com timestamp e ID
-- **Geração de PDF**: (Em breve) Exporte seu Brag Document formatado
+- **Geração de Brag Document**: Visualize suas conquistas em formato de tabela Markdown
+- **Filtros por período**: Selecione atividades de hoje, últimos 7 dias ou 30 dias
+- **Geração de PDF**: (Em breve) Exporte seu Brag Document em PDF formatado
 
 ## Tecnologias
 
@@ -129,6 +131,44 @@ Para registrar uma atividade:
    "Finalizei a implementação do sistema de autenticação com 99.8% de cobertura de testes"
    ```
 
+### Gerando seu Brag Document
+
+Para gerar um documento com suas atividades registradas:
+
+1. Envie qualquer um dos seguintes comandos ou mensagens:
+
+   - `/brag` ou `/bragfy`
+   - `bragfy`
+   - Frases como: `gerar brag`, `gerar documento`, `gerar pdf`, `gerar relatorio`
+
+2. O bot responderá com opções de período:
+
+   ```
+   Vamos gerar seu Brag Document! Escolha o período desejado:
+   [🟢 Atividades de hoje] [🔵 Últimos 7 dias] [🟣 Últimos 30 dias]
+   ```
+
+3. Ao selecionar um período, o bot gerará um documento em formato Markdown contendo:
+
+   - **Cabeçalho**: Seus dados (nome, username, ID)
+   - **Tabela de atividades**: Lista formatada de suas conquistas no período
+   - **Timestamp**: Data e hora da geração
+
+   Exemplo:
+
+   ```
+   👤 Nome: João Silva
+   📛 Username: @joaosilva
+   🆔 ID: 123456789
+
+   | 📅 Timestamp         | 📝 Atividade                        |
+   |----------------------|-------------------------------------|
+   | 27/03/2025 15:30:45  | Finalizei o sistema de autenticação |
+   | 27/03/2025 16:42:10  | Refatorei layout do dashboard       |
+
+   🔄 Gerado em 28/03/2025 10:15:30
+   ```
+
 ## Roadmap
 
 ### Implementado ✓
@@ -137,19 +177,20 @@ Para registrar uma atividade:
 - Registro de atividades com confirmação interativa
 - Armazenamento em banco de dados com timestamps
 - Interface com botões inline para melhor experiência
+- Geração de Brag Document em formato Markdown
+- Filtros por período (hoje, 7 dias, 30 dias)
 
 ### Em desenvolvimento 🚧
 
 - Fluxo de edição de atividades
-- Listagem de atividades por período
 - Geração de PDF com layout profissional
 - Comandos para visualizar estatísticas de uso
 
 ### Futuro 🔮
 
 - Suporte a múltiplos idiomas
-- Exportação em formatos alternativos (CSV, Markdown)
-- Filtros personalizados por período ou categoria
+- Exportação em formatos alternativos (CSV)
+- Filtros personalizados por categoria ou tag
 - Integração com WhatsApp via Meta API
 
 ## Licença

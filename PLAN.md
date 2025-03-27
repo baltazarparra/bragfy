@@ -20,11 +20,22 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
   - Armazenamento com ID único e timestamp formatado
   - Feedback claro para cada ação do usuário
 
+- **Geração de Brag Document**
+
+  - Múltiplos gatilhos de texto (`/brag`, `/bragfy`, `gerar brag`, etc.)
+  - Opções de período via botões inline (hoje, 7 dias, 30 dias)
+  - Formatação em tabela Markdown com cabeçalho de usuário
+  - Escape de caracteres especiais para compatibilidade
+  - Tratamento de casos sem atividades
+  - Verificação de usuário e tratamento de erros
+
 - **Infraestrutura**
   - ORM Prisma configurado
   - Ambiente de desenvolvimento com SQLite
   - Modelos de dados relacionais (User-Activity)
   - Handlers modularizados para comandos e callbacks
+  - Feedback de erro consistente em todos os casos
+  - Tratamento defensivo de dados de usuário
 
 ### 🚧 Próximos Passos
 
@@ -33,22 +44,21 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
   - Implementar fluxo completo de edição
   - Histórico de versões (opcional)
 
-- **Visualização de atividades**
+- **Visualização avançada**
 
-  - Comando para listar atividades por período
-  - Opções: hoje, 7 dias, 30 dias
-  - Interface interativa com paginação
+  - Paginação para listas extensas
+  - Filtros adicionais (categorias, tags)
 
 - **Geração de documentos**
-  - Exportação para PDF
+  - Exportação para PDF a partir do Markdown
   - Layout profissional e customizável
-  - Filtros por período
+  - Possibilidade de compartilhamento direto
 
 ### 🔮 Visão de Longo Prazo
 
 - Suporte a múltiplos idiomas
-- Exportação em formatos alternativos (CSV, Markdown)
-- Filtros personalizados por período ou tag
+- Exportação em formatos alternativos (CSV)
+- Classificação de atividades por categoria
 - Integração com WhatsApp via Meta API
 
 ## 🧠 UX — Experiência do Usuário
@@ -71,11 +81,12 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
 - Após a confirmação, salvamos a atividade com ID, timestamp e mensagem
 - Damos feedback de sucesso ou erro
 
-**Para gerar um relatório (futuro):**
+**Para gerar um relatório:**
 
-- O usuário poderá usar comandos específicos
-- Mostramos três opções de período
-- Ao selecionar, exibimos as atividades e opção de gerar PDF
+- O usuário pode usar comandos como `/brag` ou frases como "gerar brag"
+- Mostramos três opções de período (hoje, 7 dias, 30 dias)
+- Ao selecionar, geramos uma tabela Markdown com suas atividades
+- Se não houver atividades, apresentamos feedback e sugestão
 
 ## 🛠 DX — Experiência do Desenvolvedor
 
@@ -111,7 +122,7 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
 - **Modularização**: Cada arquivo tem uma responsabilidade clara
 - **Tipagem**: TypeScript com tipos estritos
 - **Tratamento de erros**: Try/catch em todas as operações assíncronas
-- **Logs**: Console.log para depuração e monitoramento
+- **Logs**: Console.log/warn/error para depuração e monitoramento
 - **Comentários**: JSDoc para funções principais
 - **Formatação**: Prettier para estilo consistente
 - **Linting**: ESLint para qualidade de código
@@ -119,9 +130,10 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
 
 ## 🤖 AX — Experiência do Assistente (BOT)
 
-- Ignora mensagens irrelevantes
+- Detecta comandos e frases-chave ("gerar brag", "gerar relatório")
 - Interface com botões inline sempre que possível
-- Feedback claro para cada ação (sucesso, erro)
-- Mensagens formatadas para melhor legibilidade
+- Feedback claro para cada ação (sucesso, erro, vazio)
+- Mensagens formatadas com Markdown para melhor legibilidade
 - Timestamps em formato legível (dd/mm/yyyy hh:mm:ss)
+- Escape de caracteres especiais para evitar problemas de formatação
 - Botões para navegação intuitiva
