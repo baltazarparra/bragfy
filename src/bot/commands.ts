@@ -4,7 +4,12 @@ import {
   createUser,
   getUserByTelegramId
 } from "../utils/userUtils";
-import { createActivity, formatTimestamp } from "../utils/activityUtils";
+import {
+  createActivity,
+  formatTimestamp,
+  getActivitiesByPeriod
+} from "../utils/activityUtils";
+import { Activity } from ".prisma/client";
 
 /**
  * Mapeia fontes de tráfego para mensagens personalizadas
@@ -131,7 +136,41 @@ export const handleNewChat = async (
       return;
     }
 
-    // Repete a mensagem para o usuário e oferece opções
+    // Verificar se é uma solicitação de brag document
+    const msgLower = messageText.toLowerCase().trim();
+    const isBragRequest =
+      msgLower === "/brag" ||
+      msgLower === "/bragfy" ||
+      msgLower === "bragfy" ||
+      msgLower.includes("gerar brag") ||
+      msgLower.includes("gerar documento") ||
+      msgLower.includes("gerar pdf") ||
+      msgLower.includes("gerar relatorio");
+
+    if (isBragRequest) {
+      console.log(
+        `Usuário ${telegramUser.id} solicitou geração de Brag Document`
+      );
+
+      const options = {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🟢 Atividades de hoje", callback_data: "brag:1" }],
+            [{ text: "🔵 Últimos 7 dias", callback_data: "brag:7" }],
+            [{ text: "🟣 Últimos 30 dias", callback_data: "brag:30" }]
+          ]
+        }
+      };
+
+      bot.sendMessage(
+        chatId,
+        "Vamos gerar seu Brag Document! Escolha o período desejado:",
+        options
+      );
+      return;
+    }
+
+    // Continua com o fluxo normal de registro de atividade
     const options = {
       reply_markup: {
         inline_keyboard: [
@@ -190,7 +229,130 @@ export const handleCallbackQuery = async (
     console.log(`Callback recebido: ${data} do usuário ${telegramUser.id}`);
 
     // Processa as diferentes ações de callback
-    if (data.startsWith("confirm:")) {
+    if (data.startsWith("brag:")) {
+      // Extrai o período solicitado
+      const period = parseInt(data.substring(5), 10);
+
+      if (isNaN(period) || ![1, 7, 30].includes(period)) {
+        console.warn(`Período inválido recebido: ${data.substring(5)}`);
+        bot.answerCallbackQuery(callbackQuery.id, { text: "Período inválido" });
+        return;
+      }
+
+      // Verifica primeiro se o usuário existe no banco de dados
+      const exists = await userExists(telegramUser.id);
+
+      if (!exists) {
+        console.warn(
+          `Usuário ${telegramUser.id} não existe no banco mas tentou gerar brag document`
+        );
+        bot.sendMessage(
+          chatId,
+          `Opa! Parece que tivemos um problema com seu cadastro.\nPor favor, envie o comando /start novamente para que possamos gerar seu documento 🙏`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro: cadastro não encontrado"
+        });
+        return;
+      }
+
+      // Busca o usuário no banco
+      const user = await getUserByTelegramId(telegramUser.id);
+
+      if (!user) {
+        console.warn(
+          `Usuário ${telegramUser.id} existe segundo userExists() mas não foi encontrado por getUserByTelegramId()`
+        );
+        bot.sendMessage(
+          chatId,
+          `Erro: Usuário não encontrado. Por favor, use o comando /start para reiniciar a conversa.`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, { text: "Erro no cadastro" });
+        return;
+      }
+
+      try {
+        // Informa ao usuário que o documento está sendo gerado
+        bot.editMessageText(
+          `⏳ Gerando seu Brag Document para os últimos ${period} dia(s)...`,
+          {
+            chat_id: chatId,
+            message_id: messageId
+          }
+        );
+
+        // Busca as atividades no período
+        const activities = await getActivitiesByPeriod(user.id, period);
+
+        // Verifica se há atividades
+        if (activities.length === 0) {
+          bot.editMessageText(
+            `Hmm, não encontrei nenhuma atividade registrada nos últimos ${period} dia(s).\n\nQue tal registrar algumas conquistas agora?`,
+            {
+              chat_id: chatId,
+              message_id: messageId
+            }
+          );
+          bot.answerCallbackQuery(callbackQuery.id, {
+            text: "Nenhuma atividade encontrada"
+          });
+          return;
+        }
+
+        // Constrói o cabeçalho do documento
+        let bragDocument = `👤 *Nome*: ${user.firstName}`;
+        if (user.lastName) bragDocument += ` ${user.lastName}`;
+        bragDocument += "\n";
+
+        if (user.username) {
+          bragDocument += `📛 *Username*: @${user.username}\n`;
+        }
+
+        bragDocument += `🆔 *ID*: ${user.telegramId}\n\n`;
+
+        // Constrói a tabela de atividades
+        bragDocument += "| 📅 *Timestamp* | 📝 *Atividade* |\n";
+        bragDocument += "|---------------|----------------|\n";
+
+        activities.forEach((activity: Activity) => {
+          const timestamp = formatTimestamp(activity.date);
+          // Escapa caracteres especiais do Markdown
+          const escapedContent = activity.content.replace(
+            /([_*[\]()~`>#+\-=|{}.!])/g,
+            "\\$1"
+          );
+          bragDocument += `| ${timestamp} | ${escapedContent} |\n`;
+        });
+
+        bragDocument += "\n🔄 _Gerado em " + formatTimestamp(new Date()) + "_";
+
+        // Envia o documento formatado
+        bot.editMessageText(bragDocument, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "Markdown"
+        });
+
+        console.log(
+          `Brag Document com ${activities.length} atividades gerado para o usuário ${user.id}`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Documento gerado!"
+        });
+      } catch (error) {
+        console.error("Erro ao gerar Brag Document:", error);
+        bot.editMessageText(
+          "Desculpe, ocorreu um erro ao gerar seu Brag Document. Por favor, tente novamente mais tarde.",
+          {
+            chat_id: chatId,
+            message_id: messageId
+          }
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro ao gerar documento"
+        });
+      }
+    } else if (data.startsWith("confirm:")) {
       // Extrai o conteúdo da mensagem do callback_data
       const content = data.substring(8);
 
