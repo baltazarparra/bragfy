@@ -92,6 +92,7 @@ export const handleNewChat = async (
     const messageText = msg.text || "";
 
     if (!telegramUser) {
+      console.warn(`Mensagem recebida sem dados do usuário no chat ${chatId}`);
       bot.sendMessage(
         chatId,
         "Não foi possível obter suas informações. Por favor, use o comando /start para começar."
@@ -103,11 +104,29 @@ export const handleNewChat = async (
     const exists = await userExists(telegramUser.id);
 
     if (!exists) {
-      // Novo usuário, pede para usar /start
+      // Usuário não existe no banco de dados, mesmo após /start
+      console.warn(
+        `Usuário ${telegramUser.id} (${telegramUser.first_name}) tentou enviar mensagem mas não está cadastrado no banco`
+      );
+
       bot.sendMessage(
         chatId,
-        `Olá, ${telegramUser.first_name}! Parece que é sua primeira vez aqui.\n\n` +
-          "Por favor, use o comando /start para se cadastrar no Bragfy."
+        `Opa! Parece que tivemos um problema ao registrar sua atividade.\nPor favor, envie o comando /start novamente para que tudo funcione direitinho 🙏`
+      );
+      return;
+    }
+
+    // Busca o usuário para garantir que ele existe antes de prosseguir
+    const user = await getUserByTelegramId(telegramUser.id);
+
+    if (!user) {
+      console.warn(
+        `Usuário ${telegramUser.id} existe segundo userExists() mas não foi encontrado por getUserByTelegramId()`
+      );
+
+      bot.sendMessage(
+        chatId,
+        `Opa! Parece que tivemos um problema ao registrar sua atividade.\nPor favor, envie o comando /start novamente para que tudo funcione direitinho 🙏`
       );
       return;
     }
@@ -134,6 +153,19 @@ export const handleNewChat = async (
     );
   } catch (error) {
     console.error("Erro ao processar nova mensagem:", error);
+
+    // Garante que o usuário sempre receba feedback, mesmo em caso de erro
+    try {
+      bot.sendMessage(
+        msg.chat.id,
+        "Ops! Ocorreu um erro ao processar sua mensagem. Por favor, tente novamente ou use o comando /start para reiniciar a conversa."
+      );
+    } catch (sendError) {
+      console.error(
+        "Erro ao enviar mensagem de erro para o usuário:",
+        sendError
+      );
+    }
   }
 };
 
@@ -146,7 +178,7 @@ export const handleCallbackQuery = async (
 ) => {
   try {
     if (!callbackQuery.message || !callbackQuery.from) {
-      console.error("Dados de callback incompletos");
+      console.warn("Dados de callback incompletos, ignorando requisição");
       return;
     }
 
@@ -162,30 +194,70 @@ export const handleCallbackQuery = async (
       // Extrai o conteúdo da mensagem do callback_data
       const content = data.substring(8);
 
+      // Verifica primeiro se o usuário existe no banco de dados
+      const exists = await userExists(telegramUser.id);
+
+      if (!exists) {
+        console.warn(
+          `Usuário ${telegramUser.id} não existe no banco mas tentou confirmar atividade`
+        );
+        bot.sendMessage(
+          chatId,
+          `Opa! Parece que tivemos um problema com seu cadastro.\nPor favor, envie o comando /start novamente para que possamos registrar sua atividade 🙏`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro: cadastro não encontrado"
+        });
+        return;
+      }
+
       // Busca o usuário no banco
       const user = await getUserByTelegramId(telegramUser.id);
 
       if (!user) {
-        bot.sendMessage(chatId, "Erro: Usuário não encontrado.");
+        console.warn(
+          `Usuário ${telegramUser.id} existe segundo userExists() mas não foi encontrado por getUserByTelegramId()`
+        );
+        bot.sendMessage(
+          chatId,
+          `Erro: Usuário não encontrado. Por favor, use o comando /start para reiniciar a conversa.`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, { text: "Erro no cadastro" });
         return;
       }
 
-      // Salva a atividade
-      const activity = await createActivity(user.id, content);
+      try {
+        // Salva a atividade
+        const activity = await createActivity(user.id, content);
 
-      // Formata e exibe o timestamp
-      const timestamp = formatTimestamp(activity.date);
+        // Formata e exibe o timestamp
+        const timestamp = formatTimestamp(activity.date);
 
-      // Responde ao usuário
-      bot.editMessageText(
-        `✅ Atividade registrada com sucesso!\n\nID: ${activity.id}\nData: ${timestamp}\n\nConteúdo:\n"${content}"`,
-        {
-          chat_id: chatId,
-          message_id: messageId
-        }
-      );
+        // Responde ao usuário
+        bot.editMessageText(
+          `✅ Atividade registrada com sucesso!\n\nID: ${activity.id}\nData: ${timestamp}\n\nConteúdo:\n"${content}"`,
+          {
+            chat_id: chatId,
+            message_id: messageId
+          }
+        );
 
-      console.log(`Atividade ${activity.id} criada para o usuário ${user.id}`);
+        console.log(
+          `Atividade ${activity.id} criada para o usuário ${user.id}`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Atividade registrada!"
+        });
+      } catch (activityError) {
+        console.error("Erro ao criar atividade:", activityError);
+        bot.sendMessage(
+          chatId,
+          "Erro ao registrar sua atividade. Por favor, tente novamente."
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro ao registrar"
+        });
+      }
     } else if (data === "edit") {
       bot.editMessageText("✏️ Por favor, envie sua mensagem corrigida.", {
         chat_id: chatId,
@@ -193,6 +265,7 @@ export const handleCallbackQuery = async (
       });
 
       console.log(`Usuário ${telegramUser.id} solicitou edição`);
+      bot.answerCallbackQuery(callbackQuery.id);
     } else if (data === "cancel") {
       bot.editMessageText("❌ Registro de atividade cancelado.", {
         chat_id: chatId,
@@ -200,18 +273,25 @@ export const handleCallbackQuery = async (
       });
 
       console.log(`Usuário ${telegramUser.id} cancelou atividade`);
+      bot.answerCallbackQuery(callbackQuery.id);
+    } else {
+      console.warn(`Callback desconhecido recebido: ${data}`);
+      bot.answerCallbackQuery(callbackQuery.id, { text: "Ação desconhecida" });
     }
-
-    // Responde ao callback para remover o indicador de carregamento no cliente
-    bot.answerCallbackQuery(callbackQuery.id);
   } catch (error) {
     console.error("Erro ao processar callback:", error);
 
-    if (callbackQuery.message) {
-      bot.sendMessage(
-        callbackQuery.message.chat.id,
-        "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente."
-      );
+    try {
+      if (callbackQuery.message) {
+        bot.sendMessage(
+          callbackQuery.message.chat.id,
+          "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente ou use /start para reiniciar."
+        );
+      }
+
+      bot.answerCallbackQuery(callbackQuery.id, { text: "Ocorreu um erro" });
+    } catch (sendError) {
+      console.error("Erro ao enviar resposta de erro:", sendError);
     }
   }
 };

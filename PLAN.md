@@ -1,104 +1,127 @@
-Assistente de Brag Document no Telegram, desenvolvido 100% com Cursor + Claude 3.7
+# Bragfy - Plano de Desenvolvimento
 
-🧠 UX — Experiência do Usuário
-Jornada do Usuário
-Ao abrir o bot:
+Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7.
 
-Tentamos recuperar seus dados via API do Telegram.
+## Status do Projeto
 
-Se não for possível, pedimos o comando /start para obter as informações básicas.
+### ✅ Recursos Implementados
 
-Se for um novo usuário:
+- **Registro de usuário**
 
-Salvamos seus dados no banco (nome, username, ID).
+  - Cadastro via comando `/start`
+  - Suporte a deep links com origem (ex: `?start=instagram`)
+  - Armazenamento seguro no banco de dados
 
-Apresentamos o bot e perguntamos se quer registrar sua primeira atividade.
+- **Gestão de atividades**
 
-Ao enviar uma mensagem:
+  - Registro via mensagens de texto diretas
+  - Interface interativa com botões inline
+  - Confirmação, edição ou cancelamento
+  - Armazenamento com ID único e timestamp formatado
+  - Feedback claro para cada ação do usuário
 
-Perguntamos se quer editar, cancelar ou confirmar o conteúdo.
+- **Infraestrutura**
+  - ORM Prisma configurado
+  - Ambiente de desenvolvimento com SQLite
+  - Modelos de dados relacionais (User-Activity)
+  - Handlers modularizados para comandos e callbacks
 
-Após a confirmação, salvamos a atividade com ID, timestamp e mensagem.
+### 🚧 Próximos Passos
 
-Damos feedback de sucesso ou erro.
+- **Edição de atividades**
 
-Para gerar um relatório:
+  - Implementar fluxo completo de edição
+  - Histórico de versões (opcional)
 
-O usuário pode digitar: Bragfy, Gerar Brag, Gerar Brag Document, Gerar PDF ou /brag.
+- **Visualização de atividades**
 
-Mostramos três botões:
+  - Comando para listar atividades por período
+  - Opções: hoje, 7 dias, 30 dias
+  - Interface interativa com paginação
 
-Atividades de hoje
+- **Geração de documentos**
+  - Exportação para PDF
+  - Layout profissional e customizável
+  - Filtros por período
 
-Atividades dos últimos 7 dias
+### 🔮 Visão de Longo Prazo
 
-Atividades dos últimos 30 dias
+- Suporte a múltiplos idiomas
+- Exportação em formatos alternativos (CSV, Markdown)
+- Filtros personalizados por período ou tag
+- Integração com WhatsApp via Meta API
 
-Ao selecionar um deles, mostramos uma tabela com as atividades e um botão "Gerar PDF".
+## 🧠 UX — Experiência do Usuário
 
-PDF é gerado com visual elegante, informações do usuário e atividades listadas.
+### Jornada do Usuário
 
-🛠 DX — Experiência do Desenvolvedor
-Stack Técnica
-Linguagem: TypeScript
+**Ao abrir o bot:**
 
-Framework: Node.js (com Telegram Bot API)
+- Tentamos recuperar seus dados via API do Telegram
+- Se não for possível, pedimos o comando `/start` para obter informações básicas
 
-ORM: Prisma
+**Se for um novo usuário:**
 
-Banco de Dados: PostgreSQL
+- Salvamos seus dados no banco (nome, username, ID)
+- Apresentamos o bot e suas funcionalidades
 
-Ambiente: Desenvolvimento local com SQLite / Produção com PostgreSQL (Railway, Neon ou Planetscale)
+**Ao enviar uma mensagem:**
 
-Testes: Vitest (testes unitários e de integração com mocks controlados)
+- Perguntamos se quer editar, cancelar ou confirmar o conteúdo
+- Após a confirmação, salvamos a atividade com ID, timestamp e mensagem
+- Damos feedback de sucesso ou erro
 
-CI/CD: GitHub Actions (opcional, com lint + test)
+**Para gerar um relatório (futuro):**
 
-PDF: Geração com pdf-lib ou puppeteer + HTML/CSS (modo headless)
+- O usuário poderá usar comandos específicos
+- Mostramos três opções de período
+- Ao selecionar, exibimos as atividades e opção de gerar PDF
 
-Arquitetura
-Monorepo opcional com /src estruturado por contexto:
+## 🛠 DX — Experiência do Desenvolvedor
 
-bash
-Copiar
-Editar
+### Stack Técnica
+
+- **Linguagem**: TypeScript
+- **Runtime**: Node.js
+- **Bot**: API Telegram Bot
+- **ORM**: Prisma
+- **Banco de Dados**: SQLite (dev) / PostgreSQL (prod)
+- **Testes**: Jest + ts-jest
+- **Qualidade**: ESLint + Prettier
+- **CI/CD**: GitHub Actions (futuro)
+- **PDF**: (a definir: pdf-lib ou puppeteer)
+
+### Arquitetura
+
+```
 /src
-└── bot
-├── handlers/
-├── commands/
-├── messages/
-└── db
-├── prisma/
-└── client.ts
-└── utils/
-Todos os comandos e interações encapsulados em handlers reusáveis
+├── bot/
+│   ├── commands.ts     # Handlers de comandos
+│   └── index.ts        # Configuração do bot
+├── db/
+│   └── client.ts       # Cliente Prisma
+├── utils/
+│   ├── userUtils.ts    # Funções relacionadas a usuários
+│   └── activityUtils.ts # Funções relacionadas a atividades
+└── main.ts             # Ponto de entrada da aplicação
+```
 
-Separação de responsabilidades: coleta de mensagens, persistência, geração de documento e interação
+### Padrões de Código
 
-🤖 AX — Experiência do Assistente (BOT)
-Ignora mensagens como "oi", "olá", etc.
+- **Modularização**: Cada arquivo tem uma responsabilidade clara
+- **Tipagem**: TypeScript com tipos estritos
+- **Tratamento de erros**: Try/catch em todas as operações assíncronas
+- **Logs**: Console.log para depuração e monitoramento
+- **Comentários**: JSDoc para funções principais
+- **Formatação**: Prettier para estilo consistente
+- **Linting**: ESLint para qualidade de código
+- **Testes**: Unitários para funções e mock para handlers
 
-Reconhece comandos por texto ou botões interativos
+## 🤖 AX — Experiência do Assistente (BOT)
 
-Sempre responde com feedback claro (salvo com sucesso, erro, etc)
-
-Atividades têm:
-
-ID único (auto-incremental ou UUID)
-
-Timestamp formatado (dd/mm/yyyy hh:mm:ss)
-
-Permite edição e cancelamento antes da confirmação
-
-Usa botões (inline keyboard) sempre que possível para tornar a experiência mais fluida
-
-Armazena todas as interações úteis (atividades confirmadas), ignorando comandos ou mensagens irrelevantes
-
-📄 Futuras Features (v2+)
-Suporte a múltiplos idiomas
-
-Exportar CSV além de PDF
-
-Filtros personalizados por período
-
-Integração com WhatsApp via Meta API
+- Ignora mensagens irrelevantes
+- Interface com botões inline sempre que possível
+- Feedback claro para cada ação (sucesso, erro)
+- Mensagens formatadas para melhor legibilidade
+- Timestamps em formato legível (dd/mm/yyyy hh:mm:ss)
+- Botões para navegação intuitiva
