@@ -62,15 +62,14 @@ export const handleStartCommand = async (
       // Novo usuário, vamos cadastrar
       await createUser(telegramUser);
 
-      // Cria mensagem personalizada baseada na fonte, se disponível
-      let welcomeMessage = `Olá, ${telegramUser.first_name}! Bem-vindo ao Bragfy! 🚀\n\n`;
+      // Mensagem de boas-vindas simplificada e elegante
+      const welcomeMessage = `Olá, ${telegramUser.first_name}.
+Bem-vindo ao Bragfy.
 
-      if (source && sourceMessages[source]) {
-        welcomeMessage += `Vejo que você veio da nossa *${sourceMessages[source]}*. Que bom que nos encontrou!\n\n`;
-      }
+Vamos registrar suas atividades profissionais e gerar **Brag Documents**.
 
-      welcomeMessage +=
-        "Estou aqui para ajudar você a registrar suas conquistas profissionais e gerar um Brag Document em PDF facilmente.";
+• Para começar, *envie uma mensagem* com sua atividade — ela será registrada.
+• Para gerar seu documento, envie: *gerar brag*, *gerar pdf* ou *gerar documento*.`;
 
       // Envia mensagem de boas-vindas personalizada
       bot.sendMessage(chatId, welcomeMessage, { parse_mode: "Markdown" });
@@ -142,14 +141,16 @@ export const handleNewChat = async (
       msgLower === "/brag" ||
       msgLower === "/bragfy" ||
       msgLower === "bragfy" ||
+      msgLower.includes("bragfy") ||
       msgLower.includes("gerar brag") ||
       msgLower.includes("gerar documento") ||
       msgLower.includes("gerar pdf") ||
-      msgLower.includes("gerar relatorio");
+      msgLower.includes("gerar relatorio") ||
+      msgLower.includes("gerar relatório");
 
     if (isBragRequest) {
       console.log(
-        `Usuário ${telegramUser.id} solicitou geração de Brag Document`
+        `Usuário ${telegramUser.id} solicitou geração de Brag Document com a mensagem: "${messageText}"`
       );
 
       const options = {
@@ -230,6 +231,9 @@ export const handleCallbackQuery = async (
 
     // Processa as diferentes ações de callback
     if (data.startsWith("brag:")) {
+      console.log(
+        `[DEBUG] Iniciando processamento de callback brag:X para usuário ${telegramUser.id}`
+      );
       // Extrai o período solicitado
       const period = parseInt(data.substring(5), 10);
 
@@ -273,7 +277,10 @@ export const handleCallbackQuery = async (
 
       try {
         // Informa ao usuário que o documento está sendo gerado
-        bot.editMessageText(
+        console.log(
+          `[DEBUG] Enviando mensagem "Gerando..." para usuário ${telegramUser.id}`
+        );
+        await bot.editMessageText(
           `⏳ Gerando seu Brag Document para os últimos ${period} dia(s)...`,
           {
             chat_id: chatId,
@@ -282,11 +289,20 @@ export const handleCallbackQuery = async (
         );
 
         // Busca as atividades no período
+        console.log(
+          `[DEBUG] Chamando getActivitiesByPeriod(${user.id}, ${period}) para usuário ${telegramUser.id}`
+        );
         const activities = await getActivitiesByPeriod(user.id, period);
+        console.log(
+          `[DEBUG] getActivitiesByPeriod retornou ${activities.length} atividades para usuário ${telegramUser.id}`
+        );
 
         // Verifica se há atividades
         if (activities.length === 0) {
-          bot.editMessageText(
+          console.log(
+            `[DEBUG] Nenhuma atividade encontrada para usuário ${telegramUser.id}`
+          );
+          await bot.editMessageText(
             `Hmm, não encontrei nenhuma atividade registrada nos últimos ${period} dia(s).\n\nQue tal registrar algumas conquistas agora?`,
             {
               chat_id: chatId,
@@ -314,40 +330,86 @@ export const handleCallbackQuery = async (
         bragDocument += "| 📅 *Timestamp* | 📝 *Atividade* |\n";
         bragDocument += "|---------------|----------------|\n";
 
-        activities.forEach((activity: Activity) => {
-          const timestamp = formatTimestamp(activity.date);
-          // Escapa caracteres especiais do Markdown
-          const escapedContent = activity.content.replace(
-            /([_*[\]()~`>#+\-=|{}.!])/g,
-            "\\$1"
-          );
-          bragDocument += `| ${timestamp} | ${escapedContent} |\n`;
-        });
+        // Processo cada atividade individualmente para melhor rastreamento de erros
+        for (let i = 0; i < activities.length; i++) {
+          const activity = activities[i];
+          try {
+            const timestamp = formatTimestamp(activity.date);
+            // Escapa caracteres especiais do Markdown
+            const escapedContent = activity.content.replace(
+              /([_*[\]()~`>#+\-=|{}.!])/g,
+              "\\$1"
+            );
+            bragDocument += `| ${timestamp} | ${escapedContent} |\n`;
+          } catch (activityError) {
+            console.error(
+              `[ERROR] Erro ao processar atividade ${i}:`,
+              activityError
+            );
+            bragDocument += `| Erro | Não foi possível formatar esta atividade |\n`;
+          }
+        }
 
         bragDocument += "\n🔄 _Gerado em " + formatTimestamp(new Date()) + "_";
 
-        // Envia o documento formatado
-        bot.editMessageText(bragDocument, {
-          chat_id: chatId,
-          message_id: messageId,
-          parse_mode: "Markdown"
-        });
-
         console.log(
-          `Brag Document com ${activities.length} atividades gerado para o usuário ${user.id}`
+          `[DEBUG] Documento gerado com sucesso para usuário ${telegramUser.id}, enviando resposta`
         );
-        bot.answerCallbackQuery(callbackQuery.id, {
-          text: "Documento gerado!"
-        });
-      } catch (error) {
-        console.error("Erro ao gerar Brag Document:", error);
-        bot.editMessageText(
-          "Desculpe, ocorreu um erro ao gerar seu Brag Document. Por favor, tente novamente mais tarde.",
-          {
+
+        // Log simplificado do documento para debug (apenas primeiros caracteres)
+        const docPreview = bragDocument.substring(0, 100) + "...";
+        console.log(`[DEBUG] Documento gerado (preview): ${docPreview}`);
+
+        try {
+          // Envia o documento formatado
+          await bot.editMessageText(bragDocument, {
             chat_id: chatId,
-            message_id: messageId
-          }
-        );
+            message_id: messageId,
+            parse_mode: "Markdown"
+          });
+
+          console.log(
+            `Brag Document com ${activities.length} atividades gerado para o usuário ${user.id}`
+          );
+          bot.answerCallbackQuery(callbackQuery.id, {
+            text: "Documento gerado!"
+          });
+        } catch (markdownError) {
+          console.error("[ERROR] Erro ao renderizar Markdown:", markdownError);
+
+          // Tenta novamente sem formatação Markdown
+          await bot.editMessageText(
+            "Seu Brag Document foi gerado, mas ocorreu um erro de formatação. Mostrando versão simplificada...\n\n" +
+              bragDocument.replace(/[*_|]/g, ""),
+            {
+              chat_id: chatId,
+              message_id: messageId
+            }
+          );
+
+          bot.answerCallbackQuery(callbackQuery.id, {
+            text: "Documento gerado com limitações"
+          });
+        }
+      } catch (error) {
+        console.error("[ERROR] Erro ao gerar Brag Document:", error);
+        try {
+          await bot.editMessageText(
+            "Desculpe, ocorreu um erro ao gerar seu Brag Document. Por favor, tente novamente mais tarde.",
+            {
+              chat_id: chatId,
+              message_id: messageId
+            }
+          );
+        } catch (sendError) {
+          console.error("[ERROR] Erro ao enviar mensagem de erro:", sendError);
+          // Tenta com mensagem mais simples
+          await bot.sendMessage(
+            chatId,
+            "Erro ao gerar Brag Document. Por favor, tente novamente."
+          );
+        }
+
         bot.answerCallbackQuery(callbackQuery.id, {
           text: "Erro ao gerar documento"
         });
