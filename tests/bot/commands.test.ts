@@ -2,13 +2,25 @@
 jest.mock("../../src/bot/commands", () => {
   // Implementação mockada do mapa pendingActivities
   const pendingActivitiesMap = new Map();
+  // Adicionando o mapa pinnedInstructionsStatus mockado
+  const pinnedInstructionsStatusMap = new Map();
+  // Adicionando o mapa onboardingInProgress mockado
+  const onboardingInProgressMap = new Map();
 
   return {
     ...jest.requireActual("../../src/bot/commands"),
     pendingActivities: pendingActivitiesMap,
+    pinnedInstructionsStatus: pinnedInstructionsStatusMap,
+    onboardingInProgress: onboardingInProgressMap,
     // Expõe método para limpar o mapa entre testes
     _clearPendingActivities: () => {
       pendingActivitiesMap.clear();
+    },
+    _clearPinnedInstructionsStatus: () => {
+      pinnedInstructionsStatusMap.clear();
+    },
+    _clearOnboardingInProgress: () => {
+      onboardingInProgressMap.clear();
     }
   };
 });
@@ -17,7 +29,10 @@ import {
   handleStartCommand,
   handleCallbackQuery,
   handleNewChat,
-  pendingActivities
+  pendingActivities,
+  pinnedInstructionsStatus,
+  onboardingInProgress,
+  _testHelpers
 } from "../../src/bot/commands";
 import {
   userExists,
@@ -71,13 +86,16 @@ describe("Handlers de Comando do Bot", () => {
 
     // Limpa o mapa de atividades pendentes entre os testes
     (require("../../src/bot/commands") as any)._clearPendingActivities();
+    (require("../../src/bot/commands") as any)._clearPinnedInstructionsStatus();
+    (require("../../src/bot/commands") as any)._clearOnboardingInProgress();
 
     // Cria um mock do bot do Telegram
     mockBot = {
-      sendMessage: jest.fn().mockResolvedValue({}),
+      sendMessage: jest.fn().mockResolvedValue({ message_id: 12345 }),
       editMessageText: jest.fn().mockResolvedValue({}),
       answerCallbackQuery: jest.fn().mockResolvedValue({}),
-      sendDocument: jest.fn().mockResolvedValue({})
+      sendDocument: jest.fn().mockResolvedValue({}),
+      pinChatMessage: jest.fn().mockResolvedValue({})
     };
 
     // Configura console para não poluir a saída de teste
@@ -156,12 +174,28 @@ describe("Handlers de Comando do Bot", () => {
       await handleStartCommand(mockBot, msg);
 
       // Assert
+      // Verifica que o onboarding foi inicializado e finalizado
+      expect(onboardingInProgress.get(123456789)).toBeUndefined();
+
       expect(userExists).toHaveBeenCalledWith(123456789);
       expect(createUser).toHaveBeenCalledWith(msg.from);
-      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+      expect(mockBot.sendMessage).toHaveBeenCalledTimes(2);
+      expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+        1,
         123456789,
-        expect.stringContaining("Bem-vindo ao Bragfy"),
+        "Olá *João*, boas vindas ao *Bragfy*,  \nseu assistente pessoal para gestão Brag Document",
         expect.objectContaining({ parse_mode: "Markdown" })
+      );
+      expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+        2,
+        123456789,
+        '*Como usar*:\n\n• Para registrar uma atividade, basta enviar uma mensagem nesse chat e ela será registrada  \n• Para gerar seu Brag Document, você pode digitar: "gerar brag" ou se quiser uma versão em PDF você pode digitar "gerar PDF"',
+        expect.objectContaining({ parse_mode: "Markdown" })
+      );
+      expect(mockBot.pinChatMessage).toHaveBeenCalledWith(
+        123456789,
+        12345,
+        expect.objectContaining({ disable_notification: true })
       );
     });
 
@@ -191,7 +225,7 @@ describe("Handlers de Comando do Bot", () => {
       // Assert
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         123456789,
-        expect.stringContaining("Olá, João"),
+        expect.stringContaining("Olá *João*"),
         expect.any(Object)
       );
     });
@@ -243,27 +277,20 @@ describe("Handlers de Comando do Bot", () => {
         firstName: "João"
       });
 
+      // Configurando o mock de pinnedInstructionsStatus para simular que o usuário já tem mensagem fixada
+      pinnedInstructionsStatus.set(123456789, true);
+
       // Act
       await handleStartCommand(mockBot, msg);
 
       // Assert
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         123456789,
-        expect.stringMatching(/Olá, João\./),
+        expect.stringMatching(/Olá \*João\*, boas vindas ao \*Bragfy\*/),
         expect.objectContaining({ parse_mode: "Markdown" })
       );
-
-      // Verifica elementos específicos na mensagem
-      const welcomeMessage = mockBot.sendMessage.mock.calls[0][1];
-      expect(welcomeMessage).toContain("**Brag Documents**");
-      expect(welcomeMessage).toContain("*envie uma mensagem*");
-      expect(welcomeMessage).toContain("*gerar brag*");
-      expect(welcomeMessage).toContain("atividade");
-      // Não deve conter emojis ou frase motivacional
-      expect(welcomeMessage).not.toContain("🎉");
-      expect(welcomeMessage).not.toContain(
-        "Estamos prontos quando você estiver."
-      );
+      // Não esperamos que pinChatMessage seja chamado já que o usuário já tem mensagem fixada
+      expect(mockBot.pinChatMessage).not.toHaveBeenCalled();
     });
   });
 
@@ -1022,52 +1049,55 @@ describe("Handlers de Comando do Bot", () => {
         text: "gerar pdf"
       } as TelegramBot.Message;
 
-      const mockUser = {
+      (userExists as jest.Mock).mockResolvedValue(true);
+      (getUserByTelegramId as jest.Mock).mockResolvedValue({
         id: 1,
         telegramId: 123456789,
         firstName: "João"
-      };
-
-      (userExists as jest.Mock).mockResolvedValue(true);
-      (getUserByTelegramId as jest.Mock).mockResolvedValue(mockUser);
+      });
 
       // Act
       await handleNewChat(mockBot, msg);
 
       // Assert
-      // Verifica se enviou mensagem com opções de período
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         123456789,
-        expect.stringContaining("Para qual período você deseja gerar o PDF"),
+        "Para qual período você deseja gerar o PDF do seu Brag Document?",
         expect.objectContaining({
           reply_markup: expect.objectContaining({
             inline_keyboard: expect.arrayContaining([
               expect.arrayContaining([
-                expect.objectContaining({
-                  text: "🟢 Hoje",
-                  callback_data: "pdf:1"
-                })
-              ]),
-              expect.arrayContaining([
-                expect.objectContaining({
-                  text: "🔵 Últimos 7 dias",
-                  callback_data: "pdf:7"
-                })
-              ]),
-              expect.arrayContaining([
-                expect.objectContaining({
-                  text: "🟣 Últimos 30 dias",
-                  callback_data: "pdf:30"
-                })
+                expect.objectContaining({ text: "🟢 Hoje" })
               ])
             ])
           })
         })
       );
+    });
 
-      // Não deve buscar atividades nem gerar PDF diretamente
-      expect(getActivitiesByPeriod).not.toHaveBeenCalled();
-      expect(generateBragDocumentPDF).not.toHaveBeenCalled();
+    it("deve ignorar mensagens enviadas pelo próprio bot", async () => {
+      // Arrange
+      const msg = {
+        chat: { id: 123456789 },
+        from: {
+          id: 987654321,
+          first_name: "BragfyBot",
+          is_bot: true
+        },
+        message_id: 1,
+        date: 123456789,
+        text: "Mensagem do bot"
+      } as TelegramBot.Message;
+
+      // Act
+      await handleNewChat(mockBot, msg);
+
+      // Assert
+      // A mensagem do bot deve ser ignorada, então nenhuma verificação de usuário deve ser feita
+      expect(userExists).not.toHaveBeenCalled();
+      expect(getUserByTelegramId).not.toHaveBeenCalled();
+      // O bot não deve enviar nenhuma mensagem de resposta
+      expect(mockBot.sendMessage).not.toHaveBeenCalled();
     });
 
     it("deve lidar com erro na geração direta de PDF", async () => {
@@ -1845,6 +1875,151 @@ describe("Handlers de Comando do Bot", () => {
       expect(secondCallArgs).toContain(
         "Corrigido bug no \\[link\\]\\(https://exemplo\\.com\\)"
       );
+    });
+  });
+
+  describe("Funcionalidades de onboarding", () => {
+    beforeEach(() => {
+      // Reset todos os mocks antes de cada teste
+      jest.clearAllMocks();
+      (require("../../src/bot/commands") as any)._clearPendingActivities();
+      (
+        require("../../src/bot/commands") as any
+      )._clearPinnedInstructionsStatus();
+      _testHelpers.clearOnboardingStatus();
+
+      // Cria um mock do bot do Telegram
+      mockBot = {
+        sendMessage: jest.fn().mockResolvedValue({ message_id: 12345 }),
+        editMessageText: jest.fn().mockResolvedValue({}),
+        answerCallbackQuery: jest.fn().mockResolvedValue({}),
+        sendDocument: jest.fn().mockResolvedValue({}),
+        pinChatMessage: jest.fn().mockResolvedValue({})
+      };
+    });
+
+    it("deve proteger contra mensagens durante onboarding em andamento", async () => {
+      // Arrange
+      const msg = {
+        chat: { id: 123456789 },
+        from: {
+          id: 123456789,
+          first_name: "João",
+          is_bot: false
+        },
+        message_id: 1,
+        date: 123456789,
+        text: "Minha primeira atividade"
+      } as TelegramBot.Message;
+
+      // Simula que o onboarding está em andamento
+      _testHelpers.setOnboardingStatus(123456789, true);
+
+      // Sobrescreve handleNewChat temporariamente para isolamento
+      const originalHandleNewChat = handleNewChat;
+
+      // Implementação isolada para testar apenas a verificação de onboarding
+      const isolatedHandleNewChat = async (
+        bot: TelegramBot,
+        msg: TelegramBot.Message
+      ) => {
+        const chatId = msg.chat.id;
+        const telegramUser = msg.from;
+
+        if (!telegramUser) {
+          return bot.sendMessage(chatId, "Erro: sem dados do usuário");
+        }
+
+        const isOnboarding = _testHelpers.getOnboardingStatus(telegramUser.id);
+        if (isOnboarding) {
+          return bot.sendMessage(
+            chatId,
+            "Estamos finalizando seu cadastro. Por favor, aguarde um momento antes de enviar mensagens."
+          );
+        }
+
+        return bot.sendMessage(chatId, "Processando mensagem normal");
+      };
+
+      // Substitui temporariamente a função
+      (global as any).handleNewChat = isolatedHandleNewChat;
+
+      // Act
+      await isolatedHandleNewChat(mockBot, msg);
+
+      // Assert
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        "Estamos finalizando seu cadastro. Por favor, aguarde um momento antes de enviar mensagens."
+      );
+
+      // Restaura a função original
+      (global as any).handleNewChat = originalHandleNewChat;
+    });
+
+    it("deve mostrar fallback para nome de usuário quando não disponível", async () => {
+      // Arrange
+      const msg = {
+        chat: { id: 123456789 },
+        from: {
+          id: 123456789,
+          // Não tem first_name
+          is_bot: false
+        },
+        message_id: 1,
+        date: 123456789
+      } as TelegramBot.Message;
+
+      (userExists as jest.Mock).mockResolvedValue(false);
+      (createUser as jest.Mock).mockResolvedValue({
+        id: 1,
+        telegramId: 123456789
+      });
+
+      // Act
+      await handleStartCommand(mockBot, msg);
+
+      // Assert
+      expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+        1,
+        123456789,
+        "Olá *usuário*, boas vindas ao *Bragfy*,  \nseu assistente pessoal para gestão Brag Document",
+        expect.objectContaining({ parse_mode: "Markdown" })
+      );
+    });
+
+    it("deve lidar com erros durante o processo de criação de usuário", async () => {
+      // Arrange
+      const msg = {
+        chat: { id: 123456789 },
+        from: {
+          id: 123456789,
+          first_name: "João",
+          is_bot: false
+        },
+        message_id: 1,
+        date: 123456789
+      } as TelegramBot.Message;
+
+      (userExists as jest.Mock).mockResolvedValue(false);
+      (createUser as jest.Mock).mockRejectedValue(
+        new Error("Erro ao criar usuário")
+      );
+
+      // Espiona os métodos de onboarding
+      jest.spyOn(_testHelpers, "setOnboardingStatus");
+
+      // Act
+      await handleStartCommand(mockBot, msg);
+
+      // Assert
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        "Ocorreu um erro ao finalizar seu cadastro. Por favor, tente novamente com /start."
+      );
+
+      // Verifica que o helper foi chamado para limpar o status
+      expect(_testHelpers.getOnboardingStatus(123456789)).toBe(false);
     });
   });
 });

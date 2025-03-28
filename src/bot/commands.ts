@@ -26,6 +26,12 @@ interface PendingActivityData {
 // Mapeia IDs de mensagem para atividades pendentes
 export const pendingActivities = new Map<number, PendingActivityData>();
 
+// Mapeia IDs de usuários para status de fixação de mensagem de instruções
+export const pinnedInstructionsStatus = new Map<number, boolean>();
+
+// Mapeia IDs de usuários para status de onboarding em andamento
+export const onboardingInProgress = new Map<number, boolean>();
+
 /**
  * Mapeia fontes de tráfego para mensagens personalizadas
  */
@@ -64,39 +70,128 @@ export const handleStartCommand = async (
       return;
     }
 
+    // Marca que o onboarding está em andamento para este usuário
+    onboardingInProgress.set(telegramUser.id, true);
+    console.log(`Iniciando onboarding para usuário ${telegramUser.id}`);
+
     // Verifica se o usuário já existe
     const exists = await userExists(telegramUser.id);
 
     if (exists) {
       // Usuário já cadastrado - mantém a mensagem padrão de reentrada
-      bot.sendMessage(
+      await bot.sendMessage(
         chatId,
         `Olá novamente, ${telegramUser.first_name}! Você já está cadastrado no Bragfy.`
       );
+
+      // Finaliza o onboarding para usuários existentes
+      onboardingInProgress.delete(telegramUser.id);
+      console.log(
+        `Onboarding finalizado para usuário existente ${telegramUser.id}`
+      );
     } else {
-      // Novo usuário, vamos cadastrar
-      await createUser(telegramUser);
+      try {
+        // Novo usuário, vamos cadastrar
+        console.log(`Criando novo usuário com ID ${telegramUser.id}`);
+        await createUser(telegramUser);
+        console.log(`Usuário ${telegramUser.id} criado com sucesso`);
 
-      // Mensagem de boas-vindas simplificada e elegante
-      const welcomeMessage = `Olá, ${telegramUser.first_name}.
-Bem-vindo ao Bragfy.
+        // Nome do usuário com fallback para "usuário" se não disponível
+        const userName = telegramUser.first_name || "usuário";
 
-Vamos registrar suas atividades profissionais e gerar **Brag Documents**.
+        // Nova mensagem de boas-vindas seguindo o template solicitado
+        const welcomeMessage = `Olá *${userName}*, boas vindas ao *Bragfy*,  
+seu assistente pessoal para gestão Brag Document`;
 
-• Para começar, *envie uma mensagem* com sua atividade — ela será registrada.
-• Para gerar seu documento, envie: *gerar brag*, *gerar pdf* ou *gerar documento*.`;
+        // Envia mensagem de boas-vindas personalizada
+        await bot.sendMessage(chatId, welcomeMessage, {
+          parse_mode: "Markdown"
+        });
+        console.log(
+          `Mensagem de boas-vindas enviada para usuário ${telegramUser.id}`
+        );
 
-      // Envia mensagem de boas-vindas personalizada
-      bot.sendMessage(chatId, welcomeMessage, { parse_mode: "Markdown" });
+        // Envia e fixa a mensagem de instruções após o onboarding
+        await sendAndPinInstructions(bot, chatId, telegramUser.id);
+
+        // Finaliza o processo de onboarding
+        onboardingInProgress.delete(telegramUser.id);
+        console.log(
+          `Onboarding finalizado com sucesso para usuário ${telegramUser.id}`
+        );
+      } catch (createError) {
+        console.error(`Erro ao criar usuário ${telegramUser.id}:`, createError);
+        console.error("Stack trace:", (createError as Error).stack);
+        onboardingInProgress.delete(telegramUser.id);
+        bot.sendMessage(
+          chatId,
+          "Ocorreu um erro ao finalizar seu cadastro. Por favor, tente novamente com /start."
+        );
+      }
     }
   } catch (error) {
     console.error("Erro ao processar comando /start:", error);
+    console.error("Stack trace:", (error as Error).stack);
+
+    // Garante que o status de onboarding é limpo em caso de erro
+    if (msg.from) {
+      onboardingInProgress.delete(msg.from.id);
+    }
+
     bot.sendMessage(
       msg.chat.id,
       "Ocorreu um erro ao processar seu comando. Por favor, tente novamente mais tarde."
     );
   }
 };
+
+/**
+ * Envia e fixa uma mensagem de instruções no chat
+ */
+async function sendAndPinInstructions(
+  bot: TelegramBot,
+  chatId: number,
+  telegramUserId: number
+): Promise<void> {
+  try {
+    // Verifica se já fixamos uma mensagem para este usuário
+    if (pinnedInstructionsStatus.get(telegramUserId)) {
+      console.log(
+        `Instruções já fixadas para o usuário ${telegramUserId}, pulando etapa`
+      );
+      return;
+    }
+
+    const instructionsMessage = `*Como usar*:
+
+• Para registrar uma atividade, basta enviar uma mensagem nesse chat e ela será registrada  
+• Para gerar seu Brag Document, você pode digitar: "gerar brag" ou se quiser uma versão em PDF você pode digitar "gerar PDF"`;
+
+    // Envia a mensagem de instruções
+    const sentMsg = await bot.sendMessage(chatId, instructionsMessage, {
+      parse_mode: "Markdown"
+    });
+    console.log(
+      `Mensagem de instruções enviada para usuário ${telegramUserId}`
+    );
+
+    // Fixa a mensagem sem notificação (disable_notification = true)
+    await bot.pinChatMessage(chatId, sentMsg.message_id, {
+      disable_notification: true
+    });
+    console.log(`Mensagem de instruções fixada para usuário ${telegramUserId}`);
+
+    // Marca que já fixamos uma mensagem para este usuário
+    pinnedInstructionsStatus.set(telegramUserId, true);
+  } catch (error) {
+    console.error(
+      `Erro ao fixar mensagem de instruções para usuário ${telegramUserId}:`,
+      error
+    );
+    console.error("Stack trace:", (error as Error).stack);
+    // Não propagamos o erro para não interromper o fluxo principal
+  }
+}
 
 /**
  * Handler para novas mensagens de chat
@@ -110,11 +205,30 @@ export const handleNewChat = async (
     const telegramUser = msg.from;
     const messageText = msg.text || "";
 
+    // Ignora mensagens enviadas pelo próprio bot
+    if (msg.from?.is_bot) {
+      console.log(`Ignorando mensagem do próprio bot no chat ${msg.chat.id}`);
+      return;
+    }
+
     if (!telegramUser) {
       console.warn(`Mensagem recebida sem dados do usuário no chat ${chatId}`);
       bot.sendMessage(
         chatId,
         "Não foi possível obter suas informações. Por favor, use o comando /start para começar."
+      );
+      return;
+    }
+
+    // Verifica se o onboarding está em andamento para este usuário
+    const isOnboarding = onboardingInProgress.get(telegramUser.id);
+    if (isOnboarding) {
+      console.log(
+        `Ignorando mensagem de usuário ${telegramUser.id} pois o onboarding está em andamento`
+      );
+      await bot.sendMessage(
+        chatId,
+        `Estamos finalizando seu cadastro. Por favor, aguarde um momento antes de enviar mensagens.`
       );
       return;
     }
@@ -863,3 +977,20 @@ async function generateAndSendPDF(
     throw error; // Propaga o erro para tratamento no chamador
   }
 }
+
+// Funções auxiliares para testes (exportadas apenas em ambiente de teste)
+export const _testHelpers = {
+  setOnboardingStatus: (userId: number, status: boolean) => {
+    if (status) {
+      onboardingInProgress.set(userId, true);
+    } else {
+      onboardingInProgress.delete(userId);
+    }
+  },
+  getOnboardingStatus: (userId: number) => {
+    return onboardingInProgress.get(userId) || false;
+  },
+  clearOnboardingStatus: () => {
+    onboardingInProgress.clear();
+  }
+};
