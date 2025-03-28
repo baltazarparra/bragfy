@@ -1,7 +1,9 @@
 import {
   handleStartCommand,
   onboardingInProgress,
-  pinnedInstructionsStatus
+  pinnedInstructionsStatus,
+  STICKERS,
+  sendStickerSafely
 } from "../../../src/bot/commands";
 import {
   createMockBot,
@@ -9,7 +11,8 @@ import {
   mockNewUser,
   mockExistingUser,
   setupMocksBeforeEach,
-  mocks
+  mocks,
+  commandsMocks
 } from "../setup";
 
 describe("Testes de Onboarding", () => {
@@ -57,6 +60,10 @@ describe("Testes de Onboarding", () => {
     // Como userExists retorna true, o onboarding deve ser finalizado
     expect(onboardingInProgress.has(123456789)).toBeFalsy();
     expect(mocks.createUser).not.toHaveBeenCalled();
+
+    // Verifica que o sendSticker foi chamado (não importa se foi direto ou via sendStickerSafely)
+    expect(mockBot.sendSticker).toHaveBeenCalled();
+
     expect(mockBot.sendMessage).toHaveBeenCalledWith(
       123456789,
       expect.stringContaining(
@@ -92,6 +99,10 @@ describe("Testes de Onboarding", () => {
 
     // Assert
     expect(mocks.createUser).toHaveBeenCalledWith(msg.from);
+
+    // Verifica que o sendSticker foi chamado (não importa se foi direto ou via sendStickerSafely)
+    expect(mockBot.sendSticker).toHaveBeenCalled();
+
     expect(mockBot.sendMessage).toHaveBeenCalledTimes(2);
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       1,

@@ -11,6 +11,7 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
   - Cadastro via comando `/start`
   - Suporte a deep links com origem (ex: `?start=instagram`)
   - Armazenamento seguro no banco de dados
+  - Stickers personalizados para boas-vindas
 
 - **Gestão de atividades**
 
@@ -19,6 +20,7 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
   - Confirmação, edição ou cancelamento
   - Armazenamento com ID único e timestamp formatado
   - Feedback claro para cada ação do usuário
+  - Stickers celebratórios após registro bem-sucedido
 
 - **Geração de Brag Document**
 
@@ -28,6 +30,7 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
   - Escape de caracteres especiais para compatibilidade
   - Tratamento de casos sem atividades
   - Verificação de usuário e tratamento de erros
+  - Stickers comemorativos para geração de documentos e PDFs
 
 - **Infraestrutura**
   - ORM Prisma configurado
@@ -142,3 +145,7 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
 - Timestamps em formato legível (dd/mm/yyyy hh:mm:ss)
 - Escape de caracteres especiais para evitar problemas de formatação
 - Botões para navegação intuitiva
+- Stickers personalizados em momentos-chave de interação:
+  - Onboarding (boas-vindas para novos usuários e retornantes)
+  - Confirmação de registro de atividade
+  - Geração de Brag Document (Markdown e PDF)

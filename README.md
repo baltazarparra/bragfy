@@ -18,7 +18,8 @@ Um Brag Document (ou "Documento de Conquistas") é uma prática recomendada para
 - **Armazenamento seguro**: Suas atividades são armazenadas com timestamp e ID
 - **Geração de Brag Document**: Visualize suas conquistas em formato de tabela Markdown
 - **Filtros por período**: Selecione atividades de hoje, últimos 7 dias ou 30 dias
-- **Geração de PDF**: (Em breve) Exporte seu Brag Document em PDF formatado
+- **Geração de PDF**: Exporte seu Brag Document em PDF formatado
+- **Experiência interativa aprimorada**: Stickers personalizados para onboarding, confirmação de atividades e geração de documentos
 
 ## Tecnologias
 
@@ -92,6 +93,8 @@ Você pode começar a usar o Bragfy de duas maneiras:
 
 2. **Via deep link**: Use um link personalizado como [https://t.me/bragfy_bot?start=landing](https://t.me/bragfy_bot?start=landing)
 
+O bot responderá com um sticker de boas-vindas e uma mensagem sobre como usar o sistema.
+
 ### Registrando atividades
 
 Para registrar uma atividade:
@@ -141,7 +144,7 @@ Para registrar uma atividade:
    [Alto] [Médio] [Baixo]
    ```
 
-6. Ao final, você receberá uma confirmação com data e hora:
+6. Ao final, você receberá uma confirmação com data e hora e um sticker animado:
 
    ```
    ✅ Atividade registrada com sucesso!
@@ -178,6 +181,7 @@ Para gerar um documento com suas atividades registradas:
    - **Cabeçalho**: Seu nome completo
    - **Lista de atividades**: Suas conquistas no período com data/hora
    - **Timestamp**: Data e hora da geração
+   - **Sticker celebratório**: Um sticker animado para celebrar seu documento
 
    Exemplo:
 
@@ -200,6 +204,8 @@ Para gerar um documento com suas atividades registradas:
 
    Documento gerado em 28/03/2025 10:15:30
    ```
+
+   Após a geração, você pode solicitar a versão em PDF clicando no botão disponível. O bot enviará um PDF formatado junto com um sticker comemorativo.
 
 ## Roadmap
 

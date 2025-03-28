@@ -1,4 +1,9 @@
-import { handleCallbackQuery, handleNewChat } from "../../../src/bot/commands";
+import {
+  handleCallbackQuery,
+  handleNewChat,
+  STICKERS,
+  sendStickerSafely
+} from "../../../src/bot/commands";
 import {
   createCallbackQuery,
   createMockBot,
@@ -6,7 +11,8 @@ import {
   mockExistingUser,
   mockActivities,
   setupMocksBeforeEach,
-  mocks
+  mocks,
+  commandsMocks
 } from "../setup";
 import * as commandsModule from "../../../src/bot/commands";
 
@@ -104,6 +110,9 @@ describe("Geração de Brag Document", () => {
           parse_mode: "Markdown"
         })
       );
+
+      // Verifica que o sendSticker foi chamado (não importa se foi direto ou via sendStickerSafely)
+      expect(mockBot.sendSticker).toHaveBeenCalled();
     });
 
     it("deve mostrar mensagem quando não há atividades no período", async () => {
@@ -330,6 +339,9 @@ describe("Geração de Brag Document", () => {
           filename: "brag-document.pdf"
         })
       );
+
+      // Verifica que o sendSticker foi chamado (não importa se foi direto ou via sendStickerSafely)
+      expect(mockBot.sendSticker).toHaveBeenCalled();
     });
   });
 });

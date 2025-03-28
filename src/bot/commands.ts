@@ -32,6 +32,41 @@ export const pinnedInstructionsStatus = new Map<number, boolean>();
 // Mapeia IDs de usuários para status de onboarding em andamento
 export const onboardingInProgress = new Map<number, boolean>();
 
+// IDs de stickers oficiais do Telegram para diferentes cenários
+export const STICKERS = {
+  WELCOME_NEW:
+    "CAACAgIAAxkBAAIOpGUvZVs-UNTQm-UbKd8EwtaCgHXVAAKUEgACj3phS0qfAAFV4T3CrzME",
+  WELCOME_BACK:
+    "CAACAgIAAxkBAAIOk2UvYqPp-GkotakDyKpBLPIJk1z-AAJPEQACSHABSxdrmeyPEI5vMwQ",
+  ACTIVITY_SUCCESS:
+    "CAACAgIAAxkBAAIOlWUvYvl4I1kDvzUDgktHHtqZn_xrAAKxAgACVp29CvQLQoMeh2HBMwQ",
+  BRAG_DOCUMENT:
+    "CAACAgIAAxkBAAIOl2UvYxlcBtLW4_mP8qnxfRR9hcVnAAL3CQACt-KZSw2htGZkXVpZMwQ",
+  PDF_DOCUMENT:
+    "CAACAgIAAxkBAAIOmWUvY0lnqYn_IiYj2ybRWlwY5xK8AALQEwACDbdJSySnWuhpJtbJMwQ"
+};
+
+/**
+ * Função utilitária para enviar stickers com tratamento de erro
+ * Evita que falhas no envio de stickers interrompam o fluxo principal
+ */
+export async function sendStickerSafely(
+  bot: TelegramBot,
+  chatId: number,
+  stickerId: string
+): Promise<void> {
+  try {
+    await bot.sendSticker(chatId, stickerId);
+    console.log(`Sticker ${stickerId} enviado com sucesso para chat ${chatId}`);
+  } catch (error) {
+    console.error(
+      `Erro ao enviar sticker ${stickerId} para chat ${chatId}:`,
+      error
+    );
+    // Não propaga o erro para não interromper o fluxo principal
+  }
+}
+
 /**
  * Mapeia fontes de tráfego para mensagens personalizadas
  */
@@ -79,6 +114,7 @@ export const handleStartCommand = async (
 
     if (exists) {
       // Usuário já cadastrado - mantém a mensagem padrão de reentrada
+      await sendStickerSafely(bot, chatId, STICKERS.WELCOME_BACK);
       await bot.sendMessage(
         chatId,
         `Olá novamente, ${telegramUser.first_name}! Você já está cadastrado no Bragfy.`
@@ -105,6 +141,9 @@ export const handleStartCommand = async (
         // Nova mensagem de boas-vindas seguindo o template solicitado
         const welcomeMessage = `Olá *${userName}*, boas vindas ao *Bragfy*,  
 seu assistente pessoal para gestão de Brag Documents`;
+
+        // Envia sticker de boas-vindas
+        await sendStickerSafely(bot, chatId, STICKERS.WELCOME_NEW);
 
         // Envia mensagem de boas-vindas personalizada
         await bot.sendMessage(chatId, welcomeMessage, {
@@ -565,6 +604,9 @@ export const handleCallbackQuery = async (
             reply_markup: inlineKeyboard.reply_markup
           });
 
+          // Envia um sticker celebrando a geração do documento
+          await sendStickerSafely(bot, chatId, STICKERS.BRAG_DOCUMENT);
+
           console.log(
             `Brag Document com ${activities.length} atividades gerado para o usuário ${user.id}`
           );
@@ -877,6 +919,9 @@ export const handleCallbackQuery = async (
           }
         );
 
+        // Envia um sticker de confirmação de atividade
+        await sendStickerSafely(bot, chatId, STICKERS.ACTIVITY_SUCCESS);
+
         console.log(
           `Atividade ${activity.id} criada para o usuário ${pendingActivity.userId} com urgência "${pendingActivity.urgency}" e impacto "${pendingActivity.impact}"`
         );
@@ -971,6 +1016,9 @@ async function generateAndSendPDF(
 
     // Envia o documento com as opções corretas
     await bot.sendDocument(chatId, pdfBuffer, options, fileOptions);
+
+    // Envia um sticker celebrando a geração do PDF
+    await sendStickerSafely(bot, chatId, STICKERS.PDF_DOCUMENT);
 
     console.log(`PDF enviado com sucesso para o usuário ${user.id}`);
   } catch (error) {

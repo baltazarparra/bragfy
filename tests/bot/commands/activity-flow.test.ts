@@ -1,7 +1,9 @@
 import {
   handleCallbackQuery,
   handleNewChat,
-  pendingActivities
+  pendingActivities,
+  STICKERS,
+  sendStickerSafely
 } from "../../../src/bot/commands";
 import {
   createMockBot,
@@ -10,7 +12,8 @@ import {
   mockExistingUser,
   mockActivities,
   setupMocksBeforeEach,
-  mocks
+  mocks,
+  commandsMocks
 } from "../setup";
 
 describe("Fluxo de Atividades", () => {
@@ -166,6 +169,9 @@ describe("Fluxo de Atividades", () => {
           message_id: callbackQuery.message?.message_id
         })
       );
+
+      // Verifica que o sendSticker foi chamado (não importa se foi direto ou via sendStickerSafely)
+      expect(mockBot.sendSticker).toHaveBeenCalled();
 
       expect(pendingActivities.has(messageId)).toBe(false);
     });

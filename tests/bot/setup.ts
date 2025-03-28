@@ -56,6 +56,7 @@ export function createMockBot() {
   return {
     sendMessage: jest.fn().mockResolvedValue({ message_id: 100 }),
     sendDocument: jest.fn().mockResolvedValue({}),
+    sendSticker: jest.fn().mockResolvedValue({}),
     deleteMessage: jest.fn().mockResolvedValue(true),
     pinChatMessage: jest.fn().mockResolvedValue(true),
     unpinChatMessage: jest.fn().mockResolvedValue(true),
@@ -197,6 +198,9 @@ export function setupMocksBeforeEach() {
   // Limpar todos os mocks antes de cada teste
   jest.clearAllMocks();
 
+  // Limpar o mock de sendStickerSafely
+  commandsMocks.sendStickerSafely.mockClear();
+
   // Configurar comportamento padrão dos mocks
   (mocks.userExists as jest.Mock).mockResolvedValue(false);
   (mocks.getUserByTelegramId as jest.Mock).mockResolvedValue(null);
@@ -258,3 +262,13 @@ export function setupMocksBeforeEach() {
     return Buffer.from("PDF simulado");
   });
 }
+
+// Mock das funções do módulo commands
+export const commandsMocks = {
+  sendStickerSafely: jest
+    .fn()
+    .mockImplementation(async (bot, chatId, stickerId) => {
+      console.log(`[MOCK] Enviando sticker ${stickerId} para chat ${chatId}`);
+      return Promise.resolve();
+    })
+};
