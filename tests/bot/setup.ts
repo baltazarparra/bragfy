@@ -227,17 +227,17 @@ export function setupMocksBeforeEach() {
   });
   (mocks.formatUrgencyLabel as jest.Mock).mockImplementation((urgency) => {
     const labels = {
-      high: "🔴 Alta",
-      medium: "🟠 Média",
-      low: "🟢 Baixa"
+      high: "Alta",
+      medium: "Média",
+      low: "Baixa"
     };
     return labels[urgency as keyof typeof labels] || urgency;
   });
   (mocks.formatImpactLabel as jest.Mock).mockImplementation((impact) => {
     const labels = {
-      high: "🔴 Alto",
-      medium: "🟠 Médio",
-      low: "🟢 Baixo"
+      high: "Alto",
+      medium: "Médio",
+      low: "Baixo"
     };
     return labels[impact as keyof typeof labels] || impact;
   });

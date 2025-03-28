@@ -104,11 +104,10 @@ describe("Fluxo de Atividades", () => {
       await handleCallbackQuery(mockBot, callbackQuery);
 
       // Assert
-      expect(mockBot.editMessageText).toHaveBeenCalledWith(
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
         expect.stringContaining("Qual é o impacto desta atividade?"),
         expect.objectContaining({
-          chat_id: 123456789,
-          message_id: callbackQuery.message?.message_id,
           reply_markup: expect.objectContaining({
             inline_keyboard: expect.any(Array)
           })
@@ -185,11 +184,10 @@ describe("Fluxo de Atividades", () => {
       await handleCallbackQuery(mockBot, callbackQuery);
 
       // Assert
-      expect(mockBot.editMessageText).toHaveBeenCalledWith(
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
         expect.stringContaining("Qual é a urgência desta atividade?"),
         expect.objectContaining({
-          chat_id: 123456789,
-          message_id: callbackQuery.message?.message_id,
           reply_markup: expect.objectContaining({
             inline_keyboard: expect.any(Array)
           })

@@ -200,7 +200,7 @@ describe("Geração de Brag Document", () => {
         123456789,
         expect.any(Buffer),
         expect.objectContaining({
-          caption: "Brag Document - 30 dia(s)"
+          caption: "Brag Document"
         }),
         expect.any(Object)
       );
@@ -261,6 +261,74 @@ describe("Geração de Brag Document", () => {
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         123456789,
         expect.stringContaining("Ocorreu um erro ao gerar seu PDF")
+      );
+    });
+
+    it("deve geração de PDF incluir opções sem emojis", async () => {
+      // Arrange
+      const msg = createMessage(123456789, 123456789, "gerar pdf");
+
+      // Act
+      await handleNewChat(mockBot, msg);
+
+      // Assert
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining(
+          "Para qual período você deseja gerar o PDF do seu Brag Document?"
+        ),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            inline_keyboard: expect.arrayContaining([
+              expect.arrayContaining([
+                expect.objectContaining({
+                  text: expect.stringMatching(/^Hoje$/),
+                  callback_data: "pdf:1"
+                })
+              ]),
+              expect.arrayContaining([
+                expect.objectContaining({
+                  text: expect.stringMatching(/^Últimos 7 dias$/),
+                  callback_data: "pdf:7"
+                })
+              ])
+            ])
+          })
+        })
+      );
+    });
+
+    it("deve usar mensagem simplificada ao gerar PDF", async () => {
+      // Arrange
+      const callbackQuery = createCallbackQuery(
+        "query123",
+        123456789,
+        123456789,
+        1234,
+        "pdf:7"
+      );
+
+      // Mock de atividades
+      const activities = mockActivities(existingUser.id, "week");
+
+      // Act
+      await handleCallbackQuery(mockBot, callbackQuery);
+
+      // Assert
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        "🧾 Gerando PDF do seu Brag Document..."
+      );
+
+      expect(mockBot.sendDocument).toHaveBeenCalledWith(
+        123456789,
+        expect.any(Buffer),
+        expect.objectContaining({
+          caption: "Brag Document"
+        }),
+        expect.objectContaining({
+          filename: "brag-document.pdf"
+        })
       );
     });
   });

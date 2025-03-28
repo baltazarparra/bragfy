@@ -115,11 +115,33 @@ Para registrar uma atividade:
 
 3. Selecione uma das opções:
 
-   - ✅ **Confirmar**: Salva a atividade no banco de dados
+   - ✅ **Confirmar**: Inicia o processo de classificação da atividade
    - ✏️ **Editar**: Permite enviar uma versão corrigida
    - ❌ **Cancelar**: Descarta a atividade
 
-4. Ao confirmar, você receberá uma confirmação com ID e timestamp:
+4. Ao confirmar, o bot enviará uma nova mensagem perguntando a urgência:
+
+   ```
+   Qual é a urgência desta atividade?
+
+   "Finalizei a implementação do sistema de autenticação com 99.8% de cobertura de testes"
+
+   [Alta] [Média] [Baixa]
+   ```
+
+5. Após escolher a urgência, o bot enviará outra mensagem perguntando o impacto:
+
+   ```
+   Qual é o impacto desta atividade?
+
+   "Finalizei a implementação do sistema de autenticação com 99.8% de cobertura de testes"
+
+   Urgência: Alta
+
+   [Alto] [Médio] [Baixo]
+   ```
+
+6. Ao final, você receberá uma confirmação com data e hora:
 
    ```
    ✅ Atividade registrada com sucesso!
@@ -129,6 +151,9 @@ Para registrar uma atividade:
 
    Conteúdo:
    "Finalizei a implementação do sistema de autenticação com 99.8% de cobertura de testes"
+
+   • Urgência: Alta
+   • Impacto: Alto
    ```
 
 ### Gerando seu Brag Document
@@ -145,28 +170,35 @@ Para gerar um documento com suas atividades registradas:
 
    ```
    Vamos gerar seu Brag Document! Escolha o período desejado:
-   [🟢 Atividades de hoje] [🔵 Últimos 7 dias] [🟣 Últimos 30 dias]
+   [Atividades de hoje] [Últimos 7 dias] [Últimos 30 dias]
    ```
 
 3. Ao selecionar um período, o bot gerará um documento em formato Markdown contendo:
 
-   - **Cabeçalho**: Seus dados (nome, username, ID)
-   - **Tabela de atividades**: Lista formatada de suas conquistas no período
+   - **Cabeçalho**: Seu nome completo
+   - **Lista de atividades**: Suas conquistas no período com data/hora
    - **Timestamp**: Data e hora da geração
 
    Exemplo:
 
    ```
-   👤 Nome: João Silva
-   📛 Username: @joaosilva
-   🆔 ID: 123456789
+   BRAG DOCUMENT
 
-   | 📅 Timestamp         | 📝 Atividade                        |
-   |----------------------|-------------------------------------|
-   | 27/03/2025 15:30:45  | Finalizei o sistema de autenticação |
-   | 27/03/2025 16:42:10  | Refatorei layout do dashboard       |
+   João Silva
 
-   🔄 Gerado em 28/03/2025 10:15:30
+   ―――――――――――――
+
+   ATIVIDADES
+
+   27/03/2025 15:30:45
+   Finalizei o sistema de autenticação
+
+   27/03/2025 16:42:10
+   Refatorei layout do dashboard
+
+   ―――――――――――――
+
+   Documento gerado em 28/03/2025 10:15:30
    ```
 
 ## Roadmap

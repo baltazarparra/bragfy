@@ -15,14 +15,16 @@ jest.mock("../../src/utils/activityUtils", () => {
     getActivitiesByPeriod: jest.fn(),
     formatTimestamp: jest.fn().mockReturnValue("01/01/2023 12:00:00"),
     formatUrgencyLabel: jest.fn().mockImplementation((urgency) => {
-      if (urgency === "high") return "🔴 Alta";
-      if (urgency === "medium") return "🟠 Média";
-      return "🟢 Baixa";
+      if (urgency === "high") return "Alta";
+      if (urgency === "medium") return "Média";
+      if (urgency === "low") return "Baixa";
+      return "Média"; // Valor padrão para entradas inválidas
     }),
     formatImpactLabel: jest.fn().mockImplementation((impact) => {
-      if (impact === "high") return "🔴 Alto";
-      if (impact === "medium") return "🟠 Médio";
-      return "🟢 Baixo";
+      if (impact === "high") return "Alto";
+      if (impact === "medium") return "Médio";
+      if (impact === "low") return "Baixo";
+      return "Médio"; // Valor padrão para entradas inválidas
     })
   };
 });
@@ -184,20 +186,20 @@ describe("Utilidades de Atividade", () => {
   });
 
   describe("formatUrgencyLabel", () => {
-    it("deve formatar corretamente os níveis de urgência", () => {
-      // Act & Assert
-      expect(formatUrgencyLabel("high")).toBe("🔴 Alta");
-      expect(formatUrgencyLabel("medium")).toBe("🟠 Média");
-      expect(formatUrgencyLabel("low")).toBe("🟢 Baixa");
+    it("deve formatar corretamente valores de urgência", () => {
+      expect(formatUrgencyLabel("high")).toBe("Alta");
+      expect(formatUrgencyLabel("medium")).toBe("Média");
+      expect(formatUrgencyLabel("low")).toBe("Baixa");
+      expect(formatUrgencyLabel("invalid")).toBe("Média"); // valor padrão
     });
   });
 
   describe("formatImpactLabel", () => {
-    it("deve formatar corretamente os níveis de impacto", () => {
-      // Act & Assert
-      expect(formatImpactLabel("high")).toBe("🔴 Alto");
-      expect(formatImpactLabel("medium")).toBe("🟠 Médio");
-      expect(formatImpactLabel("low")).toBe("🟢 Baixo");
+    it("deve formatar corretamente valores de impacto", () => {
+      expect(formatImpactLabel("high")).toBe("Alto");
+      expect(formatImpactLabel("medium")).toBe("Médio");
+      expect(formatImpactLabel("low")).toBe("Baixo");
+      expect(formatImpactLabel("invalid")).toBe("Médio"); // valor padrão
     });
   });
 });

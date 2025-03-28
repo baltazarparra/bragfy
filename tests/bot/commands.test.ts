@@ -62,14 +62,14 @@ jest.mock("../../src/utils/activityUtils", () => ({
   formatTimestamp: jest.fn(),
   getActivitiesByPeriod: jest.fn(),
   formatUrgencyLabel: jest.fn().mockImplementation((urgency) => {
-    if (urgency === "high") return "🔴 Alta";
-    if (urgency === "medium") return "🟠 Média";
-    return "🟢 Baixa";
+    if (urgency === "high") return "Alta";
+    if (urgency === "medium") return "Média";
+    return "Baixa";
   }),
   formatImpactLabel: jest.fn().mockImplementation((impact) => {
-    if (impact === "high") return "🔴 Alto";
-    if (impact === "medium") return "🟠 Médio";
-    return "🟢 Baixo";
+    if (impact === "high") return "Alto";
+    if (impact === "medium") return "Médio";
+    return "Baixo";
   })
 }));
 

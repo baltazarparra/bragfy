@@ -112,30 +112,6 @@ export const generateBragDocumentPDF = async (
       font: helveticaBold,
       color: textColor
     });
-    y -= 28;
-
-    // Username (se existir) com tratamento especial
-    if (user.username) {
-      page.drawText(sanitizeText(`@${user.username}`), {
-        x: margin,
-        y,
-        size: normalSize,
-        font: helveticaOblique,
-        color: accentColor // Destaque sutil com cor da marca
-      });
-      y -= 25;
-    } else {
-      y -= 15; // Menos espaço se não houver username
-    }
-
-    // ID do usuário
-    page.drawText(sanitizeText(`ID: ${user.telegramId}`), {
-      x: margin,
-      y,
-      size: smallSize,
-      font: helveticaFont,
-      color: darkGray
-    });
     y -= 50; // Maior espaçamento antes da próxima seção
 
     // Marca d'água sutil no fundo (opcional)

@@ -75,17 +75,22 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
 - Salvamos seus dados no banco (nome, username, ID)
 - Apresentamos o bot e suas funcionalidades
 
+**Se for um usuário existente:**
+
+- Mostramos mensagem de boas-vindas de retorno
+- Reexibimos as instruções de uso para fácil referência
+
 **Ao enviar uma mensagem:**
 
 - Perguntamos se quer editar, cancelar ou confirmar o conteúdo
-- Após a confirmação, salvamos a atividade com ID, timestamp e mensagem
-- Damos feedback de sucesso ou erro
+- Ao confirmar, solicitamos informações adicionais sobre urgência e impacto em mensagens separadas
+- Após preenchimento, salvamos a atividade com timestamp e detalhes
 
 **Para gerar um relatório:**
 
-- O usuário pode usar comandos como `/brag` ou frases como "gerar brag"
-- Mostramos três opções de período (hoje, 7 dias, 30 dias)
-- Ao selecionar, geramos uma tabela Markdown com suas atividades
+- O usuário pode usar comandos como `/brag` ou frases como "**gerar brag**"
+- Mostramos três opções de período (hoje, 7 dias, 30 dias) - sem emojis
+- Ao selecionar, geramos um documento Markdown simplificado com nome e atividades
 - Se não houver atividades, apresentamos feedback e sugestão
 
 ## 🛠 DX — Experiência do Desenvolvedor

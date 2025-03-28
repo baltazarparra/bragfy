@@ -84,6 +84,9 @@ export const handleStartCommand = async (
         `Olá novamente, ${telegramUser.first_name}! Você já está cadastrado no Bragfy.`
       );
 
+      // Envia e fixa a mensagem de instruções para relembrar o usuário
+      await sendAndPinInstructions(bot, chatId, telegramUser.id);
+
       // Finaliza o onboarding para usuários existentes
       onboardingInProgress.delete(telegramUser.id);
       console.log(
@@ -101,7 +104,7 @@ export const handleStartCommand = async (
 
         // Nova mensagem de boas-vindas seguindo o template solicitado
         const welcomeMessage = `Olá *${userName}*, boas vindas ao *Bragfy*,  
-seu assistente pessoal para gestão Brag Document`;
+seu assistente pessoal para gestão de Brag Documents`;
 
         // Envia mensagem de boas-vindas personalizada
         await bot.sendMessage(chatId, welcomeMessage, {
@@ -162,10 +165,11 @@ async function sendAndPinInstructions(
       return;
     }
 
-    const instructionsMessage = `*Como usar*:
+    const instructionsMessage = `*COMO USAR*:
 
 • Para registrar uma atividade, basta enviar uma mensagem nesse chat e ela será registrada  
-• Para gerar seu Brag Document, você pode digitar: "gerar brag" ou se quiser uma versão em PDF você pode digitar "gerar PDF"`;
+
+• Para gerar seu Brag Document, você pode digitar: "*gerar brag*" ou se quiser uma versão em PDF você pode digitar "*gerar PDF*"`;
 
     // Envia a mensagem de instruções
     const sentMsg = await bot.sendMessage(chatId, instructionsMessage, {
@@ -305,9 +309,9 @@ export const handleNewChat = async (
         const options = {
           reply_markup: {
             inline_keyboard: [
-              [{ text: "🟢 Hoje", callback_data: "pdf:1" }],
-              [{ text: "🔵 Últimos 7 dias", callback_data: "pdf:7" }],
-              [{ text: "🟣 Últimos 30 dias", callback_data: "pdf:30" }]
+              [{ text: "Hoje", callback_data: "pdf:1" }],
+              [{ text: "Últimos 7 dias", callback_data: "pdf:7" }],
+              [{ text: "Últimos 30 dias", callback_data: "pdf:30" }]
             ]
           }
         };
@@ -324,9 +328,9 @@ export const handleNewChat = async (
       const options = {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "🟢 Atividades de hoje", callback_data: "brag:1" }],
-            [{ text: "🔵 Últimos 7 dias", callback_data: "brag:7" }],
-            [{ text: "🟣 Últimos 30 dias", callback_data: "brag:30" }]
+            [{ text: "Atividades de hoje", callback_data: "brag:1" }],
+            [{ text: "Últimos 7 dias", callback_data: "brag:7" }],
+            [{ text: "Últimos 30 dias", callback_data: "brag:30" }]
           ]
         }
       };
@@ -489,11 +493,6 @@ export const handleCallbackQuery = async (
         // Seção de informações do usuário com espaçamento melhorado e hierarquia visual
         bragDocument += `\n*${user.firstName}${user.lastName ? " " + user.lastName : ""}*`;
 
-        // Adiciona username apenas se existir
-        if (user.username) {
-          bragDocument += `\n@${user.username}`;
-        }
-
         // Divider sutil
         bragDocument += `\n\n―――――――――――――\n`;
 
@@ -539,7 +538,6 @@ export const handleCallbackQuery = async (
         // Rodapé minimalista
         bragDocument += `\n\n―――――――――――――\n`;
         bragDocument += `\n_Documento gerado em ${formatTimestamp(new Date())}_`;
-        bragDocument += `\nID: ${user.telegramId}`;
 
         console.log(
           `[DEBUG] Documento gerado com sucesso para usuário ${telegramUser.id}, enviando resposta`
@@ -654,11 +652,8 @@ export const handleCallbackQuery = async (
         show_alert: false
       });
 
-      // Informa o usuário que estamos gerando o PDF
-      await bot.sendMessage(
-        chatId,
-        `⏳ Gerando PDF do seu Brag Document para os últimos ${period} dias...`
-      );
+      // Envia mensagem solicitando o PDF
+      await bot.sendMessage(chatId, `🧾 Gerando PDF do seu Brag Document...`);
 
       try {
         // Busca as atividades e gera o PDF
@@ -719,27 +714,25 @@ export const handleCallbackQuery = async (
           reply_markup: {
             inline_keyboard: [
               [
-                { text: "🔴 Alta", callback_data: `urgency:high:${messageId}` },
+                { text: "Alta", callback_data: `urgency:high:${messageId}` },
                 {
-                  text: "🟠 Média",
+                  text: "Média",
                   callback_data: `urgency:medium:${messageId}`
                 },
-                { text: "🟢 Baixa", callback_data: `urgency:low:${messageId}` }
+                { text: "Baixa", callback_data: `urgency:low:${messageId}` }
               ]
             ]
           }
         };
 
-        // Atualiza a mensagem perguntando sobre a urgência
-        await bot.editMessageText(
+        // Envia nova mensagem perguntando sobre a urgência
+        await bot.sendMessage(
+          chatId,
           `Qual é a urgência desta atividade?\n\n"${content}"`,
-          {
-            chat_id: chatId,
-            message_id: messageId,
-            reply_markup: urgencyOptions.reply_markup
-          }
+          urgencyOptions
         );
 
+        // Responde ao callback original
         console.log(
           `Pedindo urgência para atividade "${content}" do usuário ${user.id}`
         );
@@ -802,15 +795,15 @@ export const handleCallbackQuery = async (
             inline_keyboard: [
               [
                 {
-                  text: "🔴 Alto",
+                  text: "Alto",
                   callback_data: `impact:high:${pendingMessageId}`
                 },
                 {
-                  text: "🟠 Médio",
+                  text: "Médio",
                   callback_data: `impact:medium:${pendingMessageId}`
                 },
                 {
-                  text: "🟢 Baixo",
+                  text: "Baixo",
                   callback_data: `impact:low:${pendingMessageId}`
                 }
               ]
@@ -818,14 +811,11 @@ export const handleCallbackQuery = async (
           }
         };
 
-        // Atualiza a mensagem perguntando sobre o impacto
-        await bot.editMessageText(
+        // Envia nova mensagem perguntando sobre o impacto
+        await bot.sendMessage(
+          chatId,
           `Qual é o impacto desta atividade?\n\n"${pendingActivity.content}"\n\nUrgência: ${formatUrgencyLabel(urgencyValue)}`,
-          {
-            chat_id: chatId,
-            message_id: messageId,
-            reply_markup: impactOptions.reply_markup
-          }
+          impactOptions
         );
 
         console.log(
@@ -966,7 +956,7 @@ async function generateAndSendPDF(
 
     // Opções de Telegram para envio do documento
     const options: TelegramBot.SendDocumentOptions = {
-      caption: `Brag Document - ${period} dia(s)`
+      caption: `Brag Document`
     };
 
     if (replyToMessageId) {
@@ -975,7 +965,7 @@ async function generateAndSendPDF(
 
     // Opções de arquivo
     const fileOptions = {
-      filename: `brag_document_${period}_dias.pdf`,
+      filename: `brag-document.pdf`,
       contentType: "application/pdf"
     };
 

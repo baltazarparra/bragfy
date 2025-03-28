@@ -63,6 +63,13 @@ describe("Testes de Onboarding", () => {
         "Olá novamente, João! Você já está cadastrado no Bragfy."
       )
     );
+    // Verifica que as instruções também são enviadas
+    expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+      2,
+      123456789,
+      expect.stringContaining("*COMO USAR*:"),
+      expect.any(Object)
+    );
   });
 
   it("deve criar usuário e enviar mensagem para novo usuário", async () => {
@@ -73,6 +80,13 @@ describe("Testes de Onboarding", () => {
     // Mock para onboardingInProgress
     onboardingInProgress.set(123456789, true);
 
+    // Mock para pinnedInstructionsStatus para forçar envio de instruções
+    jest.spyOn(pinnedInstructionsStatus, "get").mockReturnValueOnce(false);
+
+    // Configurar mockBot para retornar valores para mensagens enviadas
+    mockBot.sendMessage.mockResolvedValueOnce({ message_id: 1001 });
+    mockBot.sendMessage.mockResolvedValueOnce({ message_id: 1002 });
+
     // Act
     await handleStartCommand(mockBot, msg);
 
@@ -82,14 +96,15 @@ describe("Testes de Onboarding", () => {
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       1,
       123456789,
-      expect.stringContaining("Olá *João*, boas vindas ao *Bragfy*"),
+      `Olá *João*, boas vindas ao *Bragfy*,  
+seu assistente pessoal para gestão de Brag Documents`,
       expect.objectContaining({ parse_mode: "Markdown" })
     );
     // Segunda mensagem com instruções
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       2,
       123456789,
-      expect.stringContaining("*Como usar*:"),
+      expect.stringContaining("*COMO USAR*:"),
       expect.any(Object)
     );
     // Verifica que o onboarding é finalizado
@@ -148,7 +163,8 @@ describe("Testes de Onboarding", () => {
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       1,
       123456789,
-      expect.stringMatching(/Olá \*João\*, boas vindas ao \*Bragfy\*/),
+      `Olá *João*, boas vindas ao *Bragfy*,  
+seu assistente pessoal para gestão de Brag Documents`,
       expect.objectContaining({ parse_mode: "Markdown" })
     );
   });
