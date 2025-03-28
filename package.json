@@ -30,8 +30,10 @@
   "description": "Telegram bot that helps users record professional activities and generate a clean Brag Document",
   "dependencies": {
     "@prisma/client": "^5.11.0",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.4.5",
     "node-telegram-bot-api": "^0.65.1",
+    "pdf-lib": "^1.17.1",
     "typescript": "^5.4.2"
   },
   "devDependencies": {

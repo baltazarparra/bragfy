@@ -1,58 +1,73 @@
-import { prisma } from "../db/client";
-import { User } from ".prisma/client";
+import { PrismaClient } from "@prisma/client";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+const prisma = new PrismaClient();
 
 /**
- * Cria uma nova atividade para o usuário
+ * Cria uma nova atividade para um usuário
+ *
+ * @param userId ID do usuário que criou a atividade
+ * @param content Conteúdo da atividade
+ * @param urgency Nível de urgência (high, medium, low)
+ * @param impact Nível de impacto (high, medium, low)
+ * @returns A atividade criada
  */
-export const createActivity = async (userId: number, content: string) => {
+export const createActivity = async (
+  userId: number,
+  content: string,
+  urgency: string = "medium",
+  impact: string = "medium"
+) => {
   try {
-    const activity = await prisma.user
-      .findUnique({
-        where: { id: userId }
-      })
-      .then((user: User | null) => {
-        if (!user) throw new Error("Usuário não encontrado");
-
-        return prisma.activity.create({
-          data: {
-            content,
-            userId: user.id
-          }
-        });
-      });
+    const activity = await prisma.activity.create({
+      data: {
+        content,
+        userId,
+        urgency,
+        impact,
+        confirmed: true
+      }
+    });
 
     return activity;
   } catch (error) {
     console.error("Erro ao criar atividade:", error);
-    throw error;
+    throw new Error("Falha ao criar atividade");
   }
 };
 
 /**
- * Busca atividades de um usuário em um período específico de dias
+ * Formata um timestamp para exibição amigável
+ *
+ * @param date Data a ser formatada
+ * @returns String formatada (DD/MM/YYYY HH:mm:ss)
+ */
+export const formatTimestamp = (date: Date): string => {
+  return format(date, "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+};
+
+/**
+ * Busca atividades de um usuário em um período específico
+ *
  * @param userId ID do usuário
- * @param days Número de dias para trás (1 = hoje, 7 = semana, 30 = mês)
- * @returns Array de atividades ordenadas por data decrescente
+ * @param days Número de dias para buscar (contando a partir de hoje)
+ * @returns Lista de atividades no período
  */
 export const getActivitiesByPeriod = async (userId: number, days: number) => {
   try {
-    // Calcula a data de início do período (dias atrás)
+    const today = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - (days - 1)); // -1 para incluir o dia atual
-    startDate.setHours(0, 0, 0, 0); // início do dia
+    startDate.setDate(today.getDate() - days + 1);
+    startDate.setHours(0, 0, 0, 0);
 
-    // Data final (hoje, fim do dia)
-    const endDate = new Date();
-    endDate.setHours(23, 59, 59, 999); // fim do dia
-
-    // Busca atividades no período
     const activities = await prisma.activity.findMany({
       where: {
-        userId: userId,
+        userId,
         date: {
-          gte: startDate,
-          lte: endDate
-        }
+          gte: startDate
+        },
+        confirmed: true
       },
       orderBy: {
         date: "desc"
@@ -61,21 +76,50 @@ export const getActivitiesByPeriod = async (userId: number, days: number) => {
 
     return activities;
   } catch (error) {
-    console.error(`Erro ao buscar atividades dos últimos ${days} dias:`, error);
-    throw error;
+    console.error(
+      `Erro ao buscar atividades para o período de ${days} dias:`,
+      error
+    );
+    throw new Error(
+      `Falha ao buscar atividades para o período de ${days} dias`
+    );
   }
 };
 
 /**
- * Formata um timestamp no formato dd/mm/yyyy hh:mm:ss
+ * Formata o valor de urgência para uma label amigável
+ *
+ * @param urgency Valor de urgência (high, medium, low)
+ * @returns Label formatada
  */
-export const formatTimestamp = (date: Date): string => {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const year = date.getFullYear();
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const seconds = date.getSeconds().toString().padStart(2, "0");
+export const formatUrgencyLabel = (urgency: string): string => {
+  switch (urgency) {
+    case "high":
+      return "Alta";
+    case "medium":
+      return "Média";
+    case "low":
+      return "Baixa";
+    default:
+      return "Média";
+  }
+};
 
-  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+/**
+ * Formata o valor de impacto para uma label amigável
+ *
+ * @param impact Valor de impacto (high, medium, low)
+ * @returns Label formatada
+ */
+export const formatImpactLabel = (impact: string): string => {
+  switch (impact) {
+    case "high":
+      return "Alto";
+    case "medium":
+      return "Médio";
+    case "low":
+      return "Baixo";
+    default:
+      return "Médio";
+  }
 };
