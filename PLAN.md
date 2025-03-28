@@ -32,6 +32,15 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
   - Verificação de usuário e tratamento de erros
   - Stickers comemorativos para geração de documentos e PDFs
 
+- **Experiência Interativa com Stickers**
+
+  - Sticker de boas-vindas para novos usuários (WELCOME_NEW)
+  - Sticker de retorno para usuários existentes (WELCOME_BACK)
+  - Sticker de confirmação após registro de atividade (ACTIVITY_SUCCESS)
+  - Sticker comemorativo para geração de documento Markdown (BRAG_DOCUMENT)
+  - Sticker especial para geração de PDF (PDF_DOCUMENT)
+  - Tratamento de erros para evitar falhas na experiência principal
+
 - **Infraestrutura**
   - ORM Prisma configurado
   - Ambiente de desenvolvimento com SQLite

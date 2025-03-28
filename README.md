@@ -207,6 +207,61 @@ Para gerar um documento com suas atividades registradas:
 
    Após a geração, você pode solicitar a versão em PDF clicando no botão disponível. O bot enviará um PDF formatado junto com um sticker comemorativo.
 
+## Experiência Interativa com Stickers
+
+O Bragfy utiliza stickers oficiais do Telegram para tornar a interação mais envolvente e divertida:
+
+- **Onboarding**:
+
+  - Sticker de boas-vindas para novos usuários quando usam `/start` pela primeira vez
+  - Sticker diferente para usuários que retornam ao bot
+  - Stickers aleatórios personalizados para tornar a experiência mais diversificada
+
+- **Registro de Atividades**:
+  - Sticker de confirmação/celebração após registrar uma atividade com sucesso
+  - Stickers aleatórios para cada nova atividade registrada
+- **Geração de Documentos**:
+  - Sticker especial ao gerar seu Brag Document em formato Markdown
+  - Sticker diferenciado ao gerar a versão PDF do documento
+  - Diversos stickers aleatórios de comemoração
+
+### Implementação de Stickers
+
+O sistema utiliza uma nova função `getRandomStickerFor` do módulo `stickerUtils.ts` que permite enviar stickers aleatórios baseados no tipo de interação:
+
+```typescript
+// Tipos de interação disponíveis
+export type InteractionType = "onboarding" | "new_activity" | "brag";
+
+// Uso da função
+import { getRandomStickerFor } from "../utils/stickerUtils";
+
+// Exemplo de uso
+try {
+  const stickerId = getRandomStickerFor("onboarding");
+  await bot.sendSticker(chatId, stickerId);
+} catch (err) {
+  console.error(`Falha ao enviar sticker:`, err);
+}
+```
+
+#### Adicionando Novos Stickers
+
+Para adicionar novos stickers ao sistema, edite o arquivo `src/utils/stickerUtils.ts` e adicione os IDs dos stickers na categoria desejada:
+
+```typescript
+const stickers: Record<InteractionType, string[]> = {
+  onboarding: [
+    "ID_STICKER_1",
+    "ID_STICKER_2"
+    // Adicione novos IDs aqui
+  ]
+  // Outras categorias...
+};
+```
+
+Para obter o ID de um sticker, envie o sticker para o bot [@getidsbot](https://t.me/getidsbot) no Telegram e copie o valor `file_id` retornado.
+
 ## Roadmap
 
 ### Implementado ✓
