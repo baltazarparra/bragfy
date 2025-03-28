@@ -215,52 +215,69 @@ O Bragfy utiliza stickers oficiais do Telegram para tornar a interação mais en
 
   - Sticker de boas-vindas para novos usuários quando usam `/start` pela primeira vez
   - Sticker diferente para usuários que retornam ao bot
-  - Stickers aleatórios personalizados para tornar a experiência mais diversificada
+  - Seleção aleatória de stickers personalizados
 
 - **Registro de Atividades**:
-  - Sticker de confirmação/celebração após registrar uma atividade com sucesso
-  - Stickers aleatórios para cada nova atividade registrada
+  - Sticker aleatório de confirmação/celebração após registrar uma atividade com sucesso
 - **Geração de Documentos**:
-  - Sticker especial ao gerar seu Brag Document em formato Markdown
-  - Sticker diferenciado ao gerar a versão PDF do documento
-  - Diversos stickers aleatórios de comemoração
+  - Sticker aleatório para celebrar a geração do Brag Document
+  - Sticker aleatório para celebrar a geração da versão PDF do documento
 
-### Implementação de Stickers
+### Módulo de Stickers
 
-O sistema utiliza uma nova função `getRandomStickerFor` do módulo `stickerUtils.ts` que permite enviar stickers aleatórios baseados no tipo de interação:
+O Bragfy implementa um sistema modular para gestão de stickers através do arquivo `src/utils/stickerUtils.ts`. Esta abordagem permite maior flexibilidade e facilidade de manutenção.
 
-```typescript
-// Tipos de interação disponíveis
-export type InteractionType = "onboarding" | "new_activity" | "brag";
+#### Tipos de Interação
 
-// Uso da função
-import { getRandomStickerFor } from "../utils/stickerUtils";
+O sistema suporta três tipos principais de interação:
 
-// Exemplo de uso
-try {
-  const stickerId = getRandomStickerFor("onboarding");
-  await bot.sendSticker(chatId, stickerId);
-} catch (err) {
-  console.error(`Falha ao enviar sticker:`, err);
-}
-```
+1. **`onboarding`**: Enviados quando um usuário inicia o bot pela primeira vez ou retorna
+
+   ```typescript
+   // Exemplo de uso
+   const stickerId = getRandomStickerFor("onboarding");
+   await bot.sendSticker(chatId, stickerId);
+   ```
+
+2. **`new_activity`**: Enviados quando uma atividade é registrada com sucesso
+
+   ```typescript
+   // Exemplo de uso
+   const stickerId = getRandomStickerFor("new_activity");
+   await bot.sendSticker(chatId, stickerId);
+   ```
+
+3. **`brag`**: Enviados quando um Brag Document é gerado (Markdown ou PDF)
+   ```typescript
+   // Exemplo de uso
+   const stickerId = getRandomStickerFor("brag");
+   await bot.sendSticker(chatId, stickerId);
+   ```
 
 #### Adicionando Novos Stickers
 
-Para adicionar novos stickers ao sistema, edite o arquivo `src/utils/stickerUtils.ts` e adicione os IDs dos stickers na categoria desejada:
+Para adicionar novos stickers ao sistema:
+
+1. Obtenha o ID do sticker enviando-o para [@getidsbot](https://t.me/getidsbot) no Telegram
+2. Edite o arquivo `src/utils/stickerUtils.ts` e adicione o ID ao array correspondente:
 
 ```typescript
 const stickers: Record<InteractionType, string[]> = {
   onboarding: [
-    "ID_STICKER_1",
-    "ID_STICKER_2"
-    // Adicione novos IDs aqui
+    "ID_EXISTENTE_1",
+    "ID_EXISTENTE_2",
+    "SEU_NOVO_ID_AQUI" // Adicione o novo ID aqui
   ]
-  // Outras categorias...
+  // outras categorias...
 };
 ```
 
-Para obter o ID de um sticker, envie o sticker para o bot [@getidsbot](https://t.me/getidsbot) no Telegram e copie o valor `file_id` retornado.
+#### Testes
+
+A funcionalidade de stickers é validada por testes unitários localizados em:
+
+- `tests/utils/stickerUtils.test.ts`: Testa a funcionalidade principal do módulo
+- `tests/bot/commands/stickers.test.ts`: Verifica a integração com o sistema de comandos do bot
 
 ## Roadmap
 

@@ -36,9 +36,10 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
 
   - Sticker de boas-vindas para novos usuários (WELCOME_NEW)
   - Sticker de retorno para usuários existentes (WELCOME_BACK)
-  - Sticker de confirmação após registro de atividade (ACTIVITY_SUCCESS)
+  - Sticker comemorativo após registro de atividade (ACTIVITY_SUCCESS)
   - Sticker comemorativo para geração de documento Markdown (BRAG_DOCUMENT)
   - Sticker especial para geração de PDF (PDF_DOCUMENT)
+  - Implementação de stickers aleatórios através do módulo `stickerUtils.ts`
   - Tratamento de erros para evitar falhas na experiência principal
 
 - **Infraestrutura**
@@ -158,3 +159,26 @@ Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7
   - Onboarding (boas-vindas para novos usuários e retornantes)
   - Confirmação de registro de atividade
   - Geração de Brag Document (Markdown e PDF)
+
+## 🖼️ Sistema de Stickers
+
+### Implementação Atual
+
+- **Módulo Dedicado**: Implementação através do arquivo `src/utils/stickerUtils.ts`
+- **Tipos de Interação**: Suporte para 3 contextos principais:
+  - `onboarding`: Enviados quando um usuário inicia o bot (novo ou retornante)
+  - `new_activity`: Enviados quando uma atividade é registrada com sucesso
+  - `brag`: Enviados quando um Brag Document é gerado (Markdown ou PDF)
+- **Seleção Aleatória**: Para cada interação, um sticker é escolhido aleatoriamente de um conjunto predefinido
+- **Testes**: Cobertura completa através de testes unitários:
+  - `tests/utils/stickerUtils.test.ts`: Verifica a funcionalidade base
+  - `tests/bot/commands/stickers.test.ts`: Testa a integração com o bot
+
+### Extensibilidade
+
+Para adicionar ou modificar stickers:
+
+1. Localize o objeto `stickers` no arquivo `src/utils/stickerUtils.ts`
+2. Adicione novos IDs de stickers ao array correspondente ao tipo de interação
+3. Para obter IDs de novos stickers, envie-os para o bot [@getidsbot](https://t.me/getidsbot) no Telegram
+4. Execute os testes para garantir que tudo funciona corretamente

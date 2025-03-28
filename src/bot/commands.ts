@@ -166,7 +166,6 @@ export const handleStartCommand = async (
     if (exists) {
       // Usuário já cadastrado - mantém a mensagem padrão de reentrada
       await sendStickerSafely(bot, chatId, STICKERS.WELCOME_BACK);
-      await sendRandomSticker(bot, chatId, "onboarding");
 
       // Adicionando uso direto da nova função
       try {
@@ -208,7 +207,6 @@ seu assistente pessoal para gestão de Brag Documents`;
 
         // Envia sticker de boas-vindas
         await sendStickerSafely(bot, chatId, STICKERS.WELCOME_NEW);
-        await sendRandomSticker(bot, chatId, "onboarding");
 
         // Adicionando uso direto da nova função
         try {
@@ -680,9 +678,6 @@ export const handleCallbackQuery = async (
             reply_markup: inlineKeyboard.reply_markup
           });
 
-          // Envia um sticker celebrando a geração do documento
-          await sendRandomSticker(bot, chatId, "brag_document");
-
           // Adicionando uso direto da nova função
           try {
             const stickerId = getRandomStickerFor("brag");
@@ -1006,9 +1001,6 @@ export const handleCallbackQuery = async (
           }
         );
 
-        // Envia um sticker de confirmação de atividade
-        await sendRandomSticker(bot, chatId, "new_activity");
-
         // Adicionando uso direto da nova função
         try {
           const stickerId = getRandomStickerFor("new_activity");
@@ -1114,9 +1106,6 @@ async function generateAndSendPDF(
 
     // Envia o documento com as opções corretas
     await bot.sendDocument(chatId, pdfBuffer, options, fileOptions);
-
-    // Envia um sticker celebrando a geração do PDF
-    await sendRandomSticker(bot, chatId, "brag_document");
 
     // Adicionando uso direto da nova função
     try {
