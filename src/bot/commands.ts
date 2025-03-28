@@ -176,10 +176,21 @@ async function sendAndPinInstructions(
     );
 
     // Fixa a mensagem sem notificação (disable_notification = true)
-    await bot.pinChatMessage(chatId, sentMsg.message_id, {
-      disable_notification: true
-    });
-    console.log(`Mensagem de instruções fixada para usuário ${telegramUserId}`);
+    try {
+      await bot.pinChatMessage(chatId, sentMsg.message_id, {
+        disable_notification: true
+      });
+      console.log(
+        `Mensagem de instruções fixada para usuário ${telegramUserId}`
+      );
+    } catch (pinError) {
+      // Sempre registra o erro no console para que os testes possam verificar
+      console.error(
+        `Erro ao fixar mensagem de instruções para usuário ${telegramUserId}:`,
+        pinError
+      );
+      console.error("Stack trace:", (pinError as Error).stack);
+    }
 
     // Marca que já fixamos uma mensagem para este usuário
     pinnedInstructionsStatus.set(telegramUserId, true);
