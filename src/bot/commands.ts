@@ -871,7 +871,7 @@ export const handleCallbackQuery = async (
         });
       }
     } else if (data.startsWith("impact:")) {
-      // Processar seleção de impacto e finalizar o registro
+      // Processar seleção de impacto
       // Formato do callback: impact:VALOR:MESSAGE_ID
       const [, impactValue, pendingMessageIdStr] = data.split(":");
       const pendingMessageId = parseInt(pendingMessageIdStr, 10);
@@ -891,6 +891,81 @@ export const handleCallbackQuery = async (
 
       // Atualiza o impacto
       pendingActivity.impact = impactValue;
+      pendingActivities.set(pendingMessageId, pendingActivity);
+
+      try {
+        // Nova etapa: mostrar confirmação de urgência e impacto antes de salvar
+        const confirmOptions = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "✅ Confirmar",
+                  callback_data: `save_activity:${pendingMessageId}`
+                },
+                {
+                  text: "✏️ Editar",
+                  callback_data: `edit_activity:${pendingMessageId}`
+                }
+              ]
+            ]
+          }
+        };
+
+        // Envia mensagem de confirmação com resumo da atividade
+        await bot.sendMessage(
+          chatId,
+          `Confira os detalhes da sua atividade:\n\n"${pendingActivity.content}"\n\n• Urgência: ${formatUrgencyLabel(pendingActivity.urgency || "medium")}\n• Impacto: ${formatImpactLabel(pendingActivity.impact || "medium")}\n\nDeseja confirmar ou editar?`,
+          confirmOptions
+        );
+
+        console.log(
+          `Solicitando confirmação para atividade "${pendingActivity.content}" (ID msg: ${pendingMessageId})`
+        );
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Confira os detalhes e confirme"
+        });
+      } catch (error) {
+        console.error("Erro ao processar seleção de impacto:", error);
+        bot.sendMessage(
+          chatId,
+          "Erro ao processar sua seleção. Por favor, tente novamente."
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro ao processar"
+        });
+      }
+    } else if (data.startsWith("save_activity:")) {
+      // Processar salvamento final da atividade
+      // Formato do callback: save_activity:MESSAGE_ID
+      console.log(`Recebido save_activity com dados: ${data}`);
+
+      // Extrair o ID da mensagem de forma consistente com o handler principal
+      let pendingMessageId;
+      try {
+        const parts = data.split(":");
+        if (parts.length === 2 && parts[0] === "save_activity") {
+          pendingMessageId = parseInt(parts[1], 10);
+        } else {
+          console.warn(`Formato inválido para save_activity: ${data}`);
+          return;
+        }
+      } catch (error) {
+        console.error(`Erro ao extrair ID da mensagem: ${error}`);
+        return;
+      }
+
+      if (isNaN(pendingMessageId) || !pendingActivities.has(pendingMessageId)) {
+        console.warn(`Atividade pendente não encontrada: ${pendingMessageId}`);
+        return;
+      }
+
+      // Recupera a atividade pendente
+      const pendingActivity = pendingActivities.get(pendingMessageId)!;
+      console.log(
+        `Atividade pendente recuperada: ${JSON.stringify(pendingActivity)}`
+      );
 
       try {
         // Agora criamos a atividade com todos os dados
@@ -934,6 +1009,241 @@ export const handleCallbackQuery = async (
         );
         bot.answerCallbackQuery(callbackQuery.id, {
           text: "Erro ao registrar"
+        });
+      }
+    } else if (data.startsWith("edit_activity:")) {
+      // Processar edição da atividade - reinicia o fluxo de seleção
+      // Formato do callback: edit_activity:MESSAGE_ID
+      console.log(`[DEBUG] Processando edit_activity com dados: ${data}`);
+
+      // Extrai o ID da mensagem usando split (mais confiável que substring)
+      let pendingMessageId;
+      try {
+        const parts = data.split(":");
+        if (parts.length === 2 && parts[0] === "edit_activity") {
+          pendingMessageId = parseInt(parts[1], 10);
+          console.log(
+            `[DEBUG] ID extraído via split: ${parts[1]}, convertido para número: ${pendingMessageId}`
+          );
+        } else {
+          console.warn(
+            `[WARN] Formato inválido para edit_activity: ${data}, partes: ${JSON.stringify(parts)}`
+          );
+          bot.answerCallbackQuery(callbackQuery.id, {
+            text: "Erro: formato inválido"
+          });
+          return;
+        }
+      } catch (error) {
+        console.error(`[ERROR] Erro ao extrair ID da mensagem: ${error}`);
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro ao processar solicitação"
+        });
+        return;
+      }
+
+      // Debug: mostra todas as atividades pendentes
+      console.log(
+        `[DEBUG] Atividades pendentes: ${Array.from(pendingActivities.keys()).join(", ")}`
+      );
+
+      if (isNaN(pendingMessageId) || !pendingActivities.has(pendingMessageId)) {
+        console.warn(
+          `[WARN] Atividade pendente não encontrada para edição: ${pendingMessageId}`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro: atividade não encontrada"
+        });
+        return;
+      }
+
+      // Recupera a atividade pendente (mantém conteúdo e userId)
+      const pendingActivity = pendingActivities.get(pendingMessageId)!;
+      console.log(
+        `[DEBUG] Atividade recuperada: ${JSON.stringify(pendingActivity)}`
+      );
+
+      try {
+        // Apresenta novamente as opções de impacto
+        const impactOptions = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "Alto",
+                  callback_data: `impact_edited:high:${pendingMessageId}`
+                },
+                {
+                  text: "Médio",
+                  callback_data: `impact_edited:medium:${pendingMessageId}`
+                },
+                {
+                  text: "Baixo",
+                  callback_data: `impact_edited:low:${pendingMessageId}`
+                }
+              ]
+            ]
+          }
+        };
+
+        // Envia nova mensagem perguntando sobre o impacto
+        await bot.sendMessage(
+          chatId,
+          `Qual é o impacto desta atividade?\n\n"${pendingActivity.content}"`,
+          impactOptions
+        );
+
+        console.log(
+          `Reiniciando fluxo de seleção para atividade "${pendingActivity.content}" (ID msg: ${pendingMessageId})`
+        );
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Selecione novamente o impacto"
+        });
+      } catch (error) {
+        console.error("Erro ao processar edição de atividade:", error);
+        bot.sendMessage(
+          chatId,
+          "Erro ao processar sua seleção. Por favor, tente novamente."
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro ao processar"
+        });
+      }
+    } else if (data.startsWith("impact_edited:")) {
+      // Processa impacto após edição, e agora pergunta sobre urgência
+      // Formato do callback: impact_edited:VALOR:MESSAGE_ID
+      const [, impactValue, pendingMessageIdStr] = data.split(":");
+      const pendingMessageId = parseInt(pendingMessageIdStr, 10);
+
+      if (isNaN(pendingMessageId) || !pendingActivities.has(pendingMessageId)) {
+        console.warn(
+          `Atividade pendente não encontrada para impacto editado: ${pendingMessageId}`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro: atividade não encontrada"
+        });
+        return;
+      }
+
+      // Recupera a atividade pendente
+      const pendingActivity = pendingActivities.get(pendingMessageId)!;
+
+      // Atualiza o impacto
+      pendingActivity.impact = impactValue;
+      pendingActivities.set(pendingMessageId, pendingActivity);
+
+      try {
+        // Opções de urgência
+        const urgencyOptions = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "Alta",
+                  callback_data: `urgency_edited:high:${pendingMessageId}`
+                },
+                {
+                  text: "Média",
+                  callback_data: `urgency_edited:medium:${pendingMessageId}`
+                },
+                {
+                  text: "Baixa",
+                  callback_data: `urgency_edited:low:${pendingMessageId}`
+                }
+              ]
+            ]
+          }
+        };
+
+        // Envia mensagem perguntando sobre a urgência após edição do impacto
+        await bot.sendMessage(
+          chatId,
+          `Qual é a urgência desta atividade?\n\n"${pendingActivity.content}"\n\nImpacto: ${formatImpactLabel(impactValue)}`,
+          urgencyOptions
+        );
+
+        console.log(
+          `Pedindo urgência após edição para atividade "${pendingActivity.content}" com impacto "${impactValue}" do usuário ${pendingActivity.userId}`
+        );
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Impacto atualizado. Agora selecione a urgência."
+        });
+      } catch (error) {
+        console.error("Erro ao processar seleção de impacto editado:", error);
+        bot.sendMessage(
+          chatId,
+          "Erro ao processar sua seleção. Por favor, tente novamente."
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro ao processar"
+        });
+      }
+    } else if (data.startsWith("urgency_edited:")) {
+      // Processa urgência após edição e mostra confirmação
+      // Formato do callback: urgency_edited:VALOR:MESSAGE_ID
+      const [, urgencyValue, pendingMessageIdStr] = data.split(":");
+      const pendingMessageId = parseInt(pendingMessageIdStr, 10);
+
+      if (isNaN(pendingMessageId) || !pendingActivities.has(pendingMessageId)) {
+        console.warn(
+          `Atividade pendente não encontrada para urgência editada: ${pendingMessageId}`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro: atividade não encontrada"
+        });
+        return;
+      }
+
+      // Recupera a atividade pendente
+      const pendingActivity = pendingActivities.get(pendingMessageId)!;
+
+      // Atualiza a urgência
+      pendingActivity.urgency = urgencyValue;
+      pendingActivities.set(pendingMessageId, pendingActivity);
+
+      try {
+        // Nova etapa: mostrar confirmação de urgência e impacto antes de salvar
+        const confirmOptions = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "✅ Confirmar",
+                  callback_data: `save_activity:${pendingMessageId}`
+                },
+                {
+                  text: "✏️ Editar",
+                  callback_data: `edit_activity:${pendingMessageId}`
+                }
+              ]
+            ]
+          }
+        };
+
+        // Envia mensagem de confirmação com resumo da atividade
+        await bot.sendMessage(
+          chatId,
+          `Confira os detalhes da sua atividade:\n\n"${pendingActivity.content}"\n\n• Urgência: ${formatUrgencyLabel(pendingActivity.urgency || "medium")}\n• Impacto: ${formatImpactLabel(pendingActivity.impact || "medium")}\n\nDeseja confirmar ou editar?`,
+          confirmOptions
+        );
+
+        console.log(
+          `Solicitando confirmação após edição para atividade "${pendingActivity.content}" (ID msg: ${pendingMessageId})`
+        );
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Confira os detalhes e confirme"
+        });
+      } catch (error) {
+        console.error("Erro ao processar seleção de urgência editada:", error);
+        bot.sendMessage(
+          chatId,
+          "Erro ao processar sua seleção. Por favor, tente novamente."
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro ao processar"
         });
       }
     } else {
@@ -1061,5 +1371,62 @@ export const _testHelpers = {
   },
   clearOnboardingStatus: () => {
     onboardingInProgress.clear();
+  },
+  // Adicionando exportações para os novos handlers para testes
+  handleSaveActivity: async (
+    bot: TelegramBot,
+    callbackQuery: TelegramBot.CallbackQuery
+  ) => {
+    if (!callbackQuery.message || !callbackQuery.data) return;
+
+    const chatId = callbackQuery.message.chat.id;
+    const messageId = callbackQuery.message.message_id;
+    const data = callbackQuery.data;
+
+    // Extrair o ID da mensagem de forma consistente com o handler principal
+    let pendingMessageId;
+    try {
+      const parts = data.split(":");
+      if (parts.length === 2 && parts[0] === "save_activity") {
+        pendingMessageId = parseInt(parts[1], 10);
+      } else {
+        console.warn(`Formato inválido para save_activity: ${data}`);
+        return;
+      }
+    } catch (error) {
+      console.error(`Erro ao extrair ID da mensagem: ${error}`);
+      return;
+    }
+
+    if (isNaN(pendingMessageId) || !pendingActivities.has(pendingMessageId)) {
+      console.warn(`Atividade pendente não encontrada: ${pendingMessageId}`);
+      return;
+    }
+
+    const pendingActivity = pendingActivities.get(pendingMessageId)!;
+    try {
+      const activity = await createActivity(
+        pendingActivity.userId,
+        pendingActivity.content,
+        pendingActivity.urgency || "medium",
+        pendingActivity.impact || "medium"
+      );
+
+      const timestamp = formatTimestamp(activity.createdAt);
+      await bot.editMessageText(
+        `✅ Atividade registrada com sucesso!\n\nID: ${activity.id}\nData: ${timestamp}\n\nConteúdo:\n"${pendingActivity.content}"\n\n• Urgência: ${formatUrgencyLabel(pendingActivity.urgency || "medium")}\n• Impacto: ${formatImpactLabel(pendingActivity.impact || "medium")}`,
+        {
+          chat_id: chatId,
+          message_id: messageId
+        }
+      );
+
+      await sendStickerSafely(bot, chatId, "new_activity");
+      pendingActivities.delete(pendingMessageId);
+
+      return activity;
+    } catch (error) {
+      throw error;
+    }
   }
 };
