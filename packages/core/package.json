@@ -1,0 +1,25 @@
+{
+  "name": "@bragfy/core",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Core shared utilities for Bragfy",
+  "dependencies": {
+    "@prisma/client": "^5.11.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.11.28",
+    "jest": "^29.7.0",
+    "prisma": "^5.11.0",
+    "ts-jest": "^29.3.0",
+    "typescript": "^5.4.2"
+  }
+}
