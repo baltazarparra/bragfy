@@ -1,78 +1,128 @@
 # Bragfy - Plano de Desenvolvimento
 
-Um assistente de Brag Document no Telegram, desenvolvido com Cursor + Claude 3.7.
+Um assistente de Brag Document no Telegram com funcionalidade de compartilhamento via link.
+
+## Arquitetura
+
+O projeto Bragfy é dividido em duas partes independentes:
+
+### 1. Bot do Telegram (este repositório)
+
+- Desenvolvimento em Node.js + TypeScript
+- Utiliza a biblioteca `node-telegram-bot-api`
+- Integração com APIs externas via Axios
+- Interface de usuário baseada em comandos e botões inline
+- Modo de simulação para desenvolvimento sem token do Telegram
+- Geração de Brag Documents em formato Markdown
+
+### 2. Webapp Viewer (repositório separado)
+
+- Desenvolvimento em Next.js 14 (App Router)
+- Serviços de API para receber documentos do bot
+- Armazenamento estático de documentos HTML
+- Roteamento dinâmico para acessar documentos via `/u/[hash]`
+
+## Fluxo de Integração
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│             │     │             │     │             │
+│   Usuário   │────▶│  Bot Bragfy │────▶│ API Viewer  │
+│  Telegram   │     │             │     │             │
+│             │     │             │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘
+       ▲                                       │
+       │                                       │
+       │                                       ▼
+       │                               ┌─────────────┐
+       │                               │             │
+       └───────────────────────────────│  HTML Page  │
+                                       │             │
+                                       └─────────────┘
+```
 
 ## Status do Projeto
 
 ### ✅ Recursos Implementados
 
-- **Registro de usuário**
+**Bot do Telegram:**
 
-  - Cadastro via comando `/start`
-  - Suporte a deep links com origem (ex: `?start=instagram`)
-  - Armazenamento seguro no banco de dados
-  - Stickers personalizados para boas-vindas
+- Comando `/start` para iniciar o bot
+- Comando `/brag` para gerar Brag Document
+- Interface com botões inline
+- Geração de hash para link seguro
+- Envio de documento via POST para a API
+- Modo de simulação para desenvolvimento local
+- Log de eventos e depuração
+- Tratamento de erros robusto
 
-- **Gestão de atividades**
+**API e Visualização:**
 
-  - Registro via mensagens de texto diretas
-  - Interface interativa com botões inline
-  - Confirmação, edição ou cancelamento
-  - Armazenamento com ID único e timestamp formatado
-  - Feedback claro para cada ação do usuário
-  - Stickers celebratórios após registro bem-sucedido
-
-- **Geração de Brag Document**
-
-  - Múltiplos gatilhos de texto (`/brag`, `/bragfy`, `gerar brag`, etc.)
-  - Opções de período via botões inline (hoje, 7 dias, 30 dias)
-  - Formatação em tabela Markdown com cabeçalho de usuário
-  - Escape de caracteres especiais para compatibilidade
-  - Tratamento de casos sem atividades
-  - Verificação de usuário e tratamento de erros
-  - Stickers comemorativos para geração de documentos e PDFs
-
-- **Experiência Interativa com Stickers**
-
-  - Sticker de boas-vindas para novos usuários (WELCOME_NEW)
-  - Sticker de retorno para usuários existentes (WELCOME_BACK)
-  - Sticker comemorativo após registro de atividade (ACTIVITY_SUCCESS)
-  - Sticker comemorativo para geração de documento Markdown (BRAG_DOCUMENT)
-  - Sticker especial para geração de PDF (PDF_DOCUMENT)
-  - Implementação de stickers aleatórios através do módulo `stickerUtils.ts`
-  - Tratamento de erros para evitar falhas na experiência principal
-
-- **Infraestrutura**
-  - ORM Prisma configurado
-  - Ambiente de desenvolvimento com SQLite
-  - Modelos de dados relacionais (User-Activity)
-  - Handlers modularizados para comandos e callbacks
-  - Feedback de erro consistente em todos os casos
-  - Tratamento defensivo de dados de usuário
+- Endpoint POST `/api/publish` para receber documentos
+- Armazenamento estático em `/public/generated`
+- Rota dinâmica `/u/[hash]` para acessar documentos
+- Validação de dados de entrada
+- Página 404 customizada para documentos não encontrados
 
 ### 🚧 Próximos Passos
 
-- **Edição de atividades**
+**Bot do Telegram:**
 
-  - Implementar fluxo completo de edição
-  - Histórico de versões (opcional)
+- Exportação para PDF
+- Autenticação e autorização avançadas
+- Configurações personalizadas por usuário
+- Suporte a edição de documentos existentes
+- Comandos adicionais de utilidade
 
-- **Visualização avançada**
+**API e Visualização:**
 
-  - Paginação para listas extensas
-  - Filtros adicionais (categorias, tags)
-
-- **Geração de documentos**
-  - Exportação para PDF a partir do Markdown
-  - Layout profissional e customizável
-  - Possibilidade de compartilhamento direto
+- Layout e design responsivo avançado
+- Temas personalizáveis
+- Proteção por senha para documentos
+- Analytics de visualização
+- Pré-renderização para melhor SEO
+- Compatibilidade com dispositivos móveis melhorada
 
 ### 🔮 Visão de Longo Prazo
 
-- Suporte a múltiplos idiomas
-- Exportação em formatos alternativos (CSV)
-- Classificação de atividades por categoria
-- Integração com WhatsApp via Meta API
+- **Armazenamento Avançado**: Migração para Supabase ou Firebase
+- **Versão Enterprise**: Com recursos para times e organizações
+- **Plataforma Multi-idioma**: Suporte a múltiplos idiomas
+- **Integrações**: Com GitHub, LinkedIn e outras plataformas
+- **API Pública**: Para integração com outros serviços
+
+## Modelo de Comunicação
+
+### Bot → API
+
+O bot envia um POST para o endpoint `/api/publish` com o seguinte formato:
+
+```json
+{
+  "hash": "string", // Hash gerado a partir do ID do usuário
+  "html": "string" // Conteúdo HTML do documento formatado
+}
+```
+
+### API → Usuário
+
+A API responde com:
+
+```json
+{
+  "success": true,
+  "url": "/u/hash123",
+  "message": "Documento publicado com sucesso"
+}
+```
+
+## Vantagens da Arquitetura Atual
+
+1. **Desacoplamento**: Bot e viewer podem ser desenvolvidos e escalados independentemente
+2. **Simplicidade**: Cada componente tem uma responsabilidade clara e bem definida
+3. **Flexibilidade**: Possibilidade de substituir componentes ou adicionar novos sem afetar os existentes
+4. **Deployment**: Cada componente pode ser hospedado em plataformas diferentes (ex: bot em VPS, webapp no Vercel)
+5. **Segurança**: Separação de responsabilidades reduz vetores de ataque
 
 ## 🧠 UX — Experiência do Usuário
 

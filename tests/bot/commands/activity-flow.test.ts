@@ -1,10 +1,9 @@
 import {
   handleCallbackQuery,
   handleNewChat,
-  pendingActivities,
-  STICKERS,
-  sendStickerSafely
+  pendingActivities
 } from "../../../src/bot/commands";
+import { sendStickerSafely } from "../../../src/utils/stickerUtils";
 import {
   createMockBot,
   createMessage,
@@ -12,8 +11,7 @@ import {
   mockExistingUser,
   mockActivities,
   setupMocksBeforeEach,
-  mocks,
-  commandsMocks
+  mocks
 } from "../setup";
 
 describe("Fluxo de Atividades", () => {

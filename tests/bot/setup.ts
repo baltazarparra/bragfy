@@ -2,7 +2,23 @@ import TelegramBot from "node-telegram-bot-api";
 import * as userUtils from "../../src/utils/userUtils";
 import * as activityUtils from "../../src/utils/activityUtils";
 import * as pdfUtils from "../../src/utils/pdfUtils";
-import type { User } from "@prisma/client";
+import * as stickerUtils from "../../src/utils/stickerUtils";
+import { BragDocumentPdfResult } from "../../src/utils/stickerUtils";
+
+// Nota: não importando prisma diretamente, pois está sendo mockado via jest.config.ts
+// Importando apenas para os tipos
+import { prisma } from "../../src/db/client";
+
+// Definir uma interface Activity com id como number ou string
+interface Activity {
+  id: number | string;
+  userId: number;
+  content: string;
+  urgency?: string;
+  impact?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // Interface para o tipo de dados de atividade pendente
 export interface PendingActivityData {
@@ -16,53 +32,113 @@ export interface PendingActivityData {
 }
 
 // Mocks para suprimir logs durante os testes
-jest.spyOn(console, "log").mockImplementation(() => {});
-jest.spyOn(console, "error").mockImplementation(() => {});
-jest.spyOn(console, "warn").mockImplementation(() => {});
+beforeAll(() => {
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+});
 
 // Mockar as funções de utils
 export const mocks = {
-  userExists: jest.spyOn(userUtils, "userExists"),
-  getUserByTelegramId: jest.spyOn(userUtils, "getUserByTelegramId"),
-  createUser: jest.spyOn(userUtils, "createUser"),
-  createActivity: jest.spyOn(activityUtils, "createActivity"),
-  getActivitiesByPeriod: jest.spyOn(activityUtils, "getActivitiesByPeriod"),
-  formatTimestamp: jest.spyOn(activityUtils, "formatTimestamp"),
-  formatUrgencyLabel: jest.spyOn(activityUtils, "formatUrgencyLabel"),
-  formatImpactLabel: jest.spyOn(activityUtils, "formatImpactLabel"),
+  userExists: jest
+    .spyOn(userUtils, "userExists")
+    .mockImplementation(() => Promise.resolve(false)),
+  getUserByTelegramId: jest
+    .spyOn(userUtils, "getUserByTelegramId")
+    .mockImplementation(() => Promise.resolve(null)),
+  createUser: jest
+    .spyOn(userUtils, "createUser")
+    .mockImplementation((telegramUser) => {
+      return Promise.resolve({
+        id: 43,
+        telegramId: telegramUser.id,
+        firstName: telegramUser.first_name,
+        lastName: telegramUser.last_name || null,
+        username: telegramUser.username || null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }),
+  createActivity: jest
+    .spyOn(activityUtils, "createActivity")
+    .mockImplementation((userId, content, urgency, impact) => {
+      return Promise.resolve({
+        id: Math.floor(Math.random() * 10000), // ID numérico para compatibilidade com o tipo Activity
+        userId,
+        content,
+        urgency: urgency || "medium",
+        impact: impact || "medium",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }),
+  getActivitiesByPeriod: jest
+    .spyOn(activityUtils, "getActivitiesByPeriod")
+    .mockResolvedValue([]),
+  formatTimestamp: jest
+    .spyOn(activityUtils, "formatTimestamp")
+    .mockImplementation((date) => {
+      return new Date(date).toLocaleString("pt-BR");
+    }),
+  formatUrgencyLabel: jest
+    .spyOn(activityUtils, "formatUrgencyLabel")
+    .mockImplementation((urgency) => {
+      const labels: Record<string, string> = {
+        high: "Alta",
+        medium: "Média",
+        low: "Baixa"
+      };
+      return labels[urgency] || urgency;
+    }),
+  formatImpactLabel: jest
+    .spyOn(activityUtils, "formatImpactLabel")
+    .mockImplementation((impact) => {
+      const labels: Record<string, string> = {
+        high: "Alto",
+        medium: "Médio",
+        low: "Baixo"
+      };
+      return labels[impact] || impact;
+    }),
   generateBragDocument: jest.fn(),
   generatePDF: jest.fn(),
-  generateBragDocumentPDF: jest.spyOn(pdfUtils, "generateBragDocumentPDF")
-};
-
-// Mock do cliente Prisma
-export const mockPrismaClient = {
-  user: {
-    findUnique: jest.fn(),
-    findFirst: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn()
-  },
-  activity: {
-    create: jest.fn(),
-    findMany: jest.fn()
-  },
-  $connect: jest.fn(),
-  $disconnect: jest.fn()
+  generateBragDocumentPDF: jest
+    .spyOn(pdfUtils, "generateBragDocumentPDF")
+    .mockResolvedValue({
+      success: true
+    } as BragDocumentPdfResult),
+  getRandomStickerFor: jest
+    .spyOn(stickerUtils, "getRandomStickerFor")
+    .mockImplementation(() => {
+      return "CAACAgIAAxkBAAEFJQVkQ_l4nAABGFAyRfjQlNMrK-W_mU8AAmcAAzj5wUrIAtUZoWZgUjQE";
+    }),
+  sendStickerSafely: jest
+    .spyOn(stickerUtils, "sendStickerSafely")
+    .mockImplementation(async () => {
+      return true;
+    }),
+  // Mocks do Prisma - usamos apenas os spyOn para os testes, os mocks reais estão em __mocks__/@prisma/client.js
+  prismaUserFindUnique: jest.fn() as jest.SpyInstance<Promise<any>>,
+  prismaUserCreate: jest.fn() as jest.SpyInstance<Promise<any>>,
+  prismaActivityCreate: jest.fn() as jest.SpyInstance<Promise<any>>,
+  prismaActivityFindMany: jest.fn() as jest.SpyInstance<Promise<any[]>>
 };
 
 // Mock do bot do Telegram
 export function createMockBot() {
   return {
     sendMessage: jest.fn().mockResolvedValue({ message_id: 100 }),
-    sendDocument: jest.fn().mockResolvedValue({}),
     sendSticker: jest.fn().mockResolvedValue({}),
+    sendDocument: jest.fn().mockResolvedValue({}),
     deleteMessage: jest.fn().mockResolvedValue(true),
+    editMessageText: jest.fn().mockResolvedValue({}),
+    editMessageReplyMarkup: jest.fn().mockResolvedValue({}),
     pinChatMessage: jest.fn().mockResolvedValue(true),
     unpinChatMessage: jest.fn().mockResolvedValue(true),
     answerCallbackQuery: jest.fn().mockResolvedValue(true),
-    editMessageText: jest.fn().mockResolvedValue({}),
-    editMessageReplyMarkup: jest.fn().mockResolvedValue({})
+    getChatAdministrators: jest
+      .fn()
+      .mockResolvedValue([{ user: { id: 123456789 } }])
   };
 }
 
@@ -134,8 +210,8 @@ export function mockExistingUser(userId: number = 123456789) {
     updatedAt: new Date()
   };
 
-  (mocks.userExists as jest.Mock).mockResolvedValue(true);
-  (mocks.getUserByTelegramId as jest.Mock).mockResolvedValue(user);
+  mocks.userExists.mockResolvedValue(true);
+  mocks.getUserByTelegramId.mockResolvedValue(user);
 
   return user;
 }
@@ -152,29 +228,29 @@ export function mockNewUser(userId: number = 123456789) {
     updatedAt: new Date()
   };
 
-  (mocks.userExists as jest.Mock).mockResolvedValue(false);
-  (mocks.getUserByTelegramId as jest.Mock).mockResolvedValue(null);
-  (mocks.createUser as jest.Mock).mockResolvedValue(newUser);
+  mocks.userExists.mockResolvedValue(false);
+  mocks.getUserByTelegramId.mockResolvedValue(null);
+  mocks.createUser.mockResolvedValue(newUser);
 
   return newUser;
 }
 
 // Função para mockar atividades para um usuário
-export function mockActivities(userId: number, period: string) {
-  const activities = [
+export function mockActivities(userId: number, period: string): Activity[] {
+  const activities: Activity[] = [
     {
-      id: "1",
+      id: 1,
       userId: userId,
-      description: "Implementei nova funcionalidade",
+      content: "Implementei nova funcionalidade",
       urgency: "high",
       impact: "medium",
       createdAt: new Date(),
       updatedAt: new Date()
     },
     {
-      id: "2",
+      id: 2,
       userId: userId,
-      description: "Corrigi bug crítico",
+      content: "Corrigi bug crítico",
       urgency: "high",
       impact: "high",
       createdAt: new Date(),
@@ -182,12 +258,9 @@ export function mockActivities(userId: number, period: string) {
     }
   ];
 
-  (mocks.getActivitiesByPeriod as jest.Mock).mockResolvedValue(activities);
-  (mocks.generateBragDocument as jest.Mock).mockReturnValue(
-    "# Brag Document\n\n## Alta Prioridade\n- Implementei nova funcionalidade\n- Corrigi bug crítico"
-  );
-  (mocks.generatePDF as jest.Mock).mockResolvedValue(
-    "/caminho/para/brag_document.pdf"
+  // Usar any para contornar problemas de tipo
+  mocks.getActivitiesByPeriod.mockImplementation(() =>
+    Promise.resolve(activities as any)
   );
 
   return activities;
@@ -195,80 +268,90 @@ export function mockActivities(userId: number, period: string) {
 
 // Função para configurar os mocks antes de cada teste
 export function setupMocksBeforeEach() {
-  // Limpar todos os mocks antes de cada teste
+  // Limpa todos os mocks
   jest.clearAllMocks();
 
-  // Limpar o mock de sendStickerSafely
-  commandsMocks.sendStickerSafely.mockClear();
+  // Configura mocks para simular usuário novo
+  mocks.userExists.mockImplementation(() => Promise.resolve(false));
+  mocks.getUserByTelegramId.mockImplementation(() => Promise.resolve(null));
 
-  // Configurar comportamento padrão dos mocks
-  (mocks.userExists as jest.Mock).mockResolvedValue(false);
-  (mocks.getUserByTelegramId as jest.Mock).mockResolvedValue(null);
-  (mocks.createUser as jest.Mock).mockImplementation((telegramUser) => {
+  // Configura o mock do Prisma para userExists
+  mocks.prismaUserFindUnique.mockImplementation(({ where }) => {
+    // Se for o ID 123456789, returna um usuário existente
+    if (where.telegramId === 123456789) {
+      return Promise.resolve({
+        id: 43,
+        telegramId: 123456789,
+        firstName: "João",
+        lastName: null,
+        username: "joaosilva",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
+    return Promise.resolve(null);
+  });
+
+  // Configura o mock do Prisma para createUser
+  mocks.prismaUserCreate.mockImplementation(({ data }) => {
     return Promise.resolve({
       id: 43,
-      telegramId: telegramUser.id,
-      firstName: telegramUser.first_name,
-      lastName: telegramUser.last_name || null,
-      username: telegramUser.username || null,
+      ...data,
       createdAt: new Date(),
       updatedAt: new Date()
     });
   });
 
-  (mocks.createActivity as jest.Mock).mockImplementation((activityData) => {
+  // Configura o mock do Prisma para createActivity
+  mocks.prismaActivityCreate.mockImplementation(({ data }) => {
     return Promise.resolve({
-      id: "activity-" + Math.random().toString(36).substring(7),
-      ...activityData,
+      id: Math.floor(Math.random() * 10000),
+      ...data,
       createdAt: new Date(),
       updatedAt: new Date()
     });
   });
 
-  (mocks.getActivitiesByPeriod as jest.Mock).mockResolvedValue([]);
-  (mocks.formatTimestamp as jest.Mock).mockImplementation((date) => {
-    return new Date(date).toLocaleString("pt-BR");
-  });
-  (mocks.formatUrgencyLabel as jest.Mock).mockImplementation((urgency) => {
-    const labels = {
-      high: "Alta",
-      medium: "Média",
-      low: "Baixa"
-    };
-    return labels[urgency as keyof typeof labels] || urgency;
-  });
-  (mocks.formatImpactLabel as jest.Mock).mockImplementation((impact) => {
-    const labels = {
-      high: "Alto",
-      medium: "Médio",
-      low: "Baixo"
-    };
-    return labels[impact as keyof typeof labels] || impact;
+  // Configura o mock do Prisma para getActivitiesByPeriod
+  mocks.prismaActivityFindMany.mockImplementation(({ where }) => {
+    if (where.userId === 43) {
+      return Promise.resolve([
+        {
+          id: 101,
+          content: "Atividade 1",
+          userId: 43,
+          urgency: "high",
+          impact: "medium",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: 102,
+          content: "Atividade 2",
+          userId: 43,
+          urgency: "medium",
+          impact: "high",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ]);
+    }
+    return Promise.resolve([]);
   });
 
-  (mocks.generateBragDocument as jest.Mock).mockImplementation(
-    (activities: any[], user: any) => {
-      return `# Brag Document de ${user.firstName}\n\n## Atividades\n${activities
-        .map((a: any) => `- ${a.description}`)
-        .join("\n")}`;
+  // Mocks relacionados a stickers
+  mocks.getRandomStickerFor.mockReturnValue("STICKER_FILE_ID_1");
+  mocks.sendStickerSafely.mockImplementation(
+    async (bot, chatId, interaction) => {
+      // Chamar o bot.sendSticker diretamente para garantir que o mock do bot é usado
+      await bot.sendSticker(chatId, "STICKER_FILE_ID_1");
+      return true;
     }
   );
 
-  (mocks.generatePDF as jest.Mock).mockImplementation(async () => {
-    return "/caminho/para/brag_document.pdf";
-  });
-
-  (mocks.generateBragDocumentPDF as jest.Mock).mockImplementation(async () => {
-    return Buffer.from("PDF simulado");
-  });
+  // Mock para formatTimestamp
+  mocks.formatTimestamp.mockImplementation(
+    (date) =>
+      `${new Date(date).toLocaleDateString()} às ${new Date(date).toLocaleTimeString()}`
+  );
 }
-
-// Mock das funções do módulo commands
-export const commandsMocks = {
-  sendStickerSafely: jest
-    .fn()
-    .mockImplementation(async (bot, chatId, stickerId) => {
-      console.log(`[MOCK] Enviando sticker ${stickerId} para chat ${chatId}`);
-      return Promise.resolve();
-    })
-};

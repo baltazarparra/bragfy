@@ -1,9 +1,7 @@
 import {
   handleStartCommand,
   onboardingInProgress,
-  pinnedInstructionsStatus,
-  STICKERS,
-  sendStickerSafely
+  pinnedInstructionsStatus
 } from "../../../src/bot/commands";
 import {
   createMockBot,
@@ -11,8 +9,7 @@ import {
   mockNewUser,
   mockExistingUser,
   setupMocksBeforeEach,
-  mocks,
-  commandsMocks
+  mocks
 } from "../setup";
 
 describe("Testes de Onboarding", () => {
@@ -50,6 +47,9 @@ describe("Testes de Onboarding", () => {
     const msg = createMessage(123456789, 123456789, "/start");
     const existingUser = mockExistingUser(123456789);
 
+    // Resetar contadores de chamadas
+    jest.clearAllMocks();
+
     // Mock para onboardingInProgress
     onboardingInProgress.set(123456789, true);
 
@@ -61,8 +61,13 @@ describe("Testes de Onboarding", () => {
     expect(onboardingInProgress.has(123456789)).toBeFalsy();
     expect(mocks.createUser).not.toHaveBeenCalled();
 
-    // Verifica que o sendSticker foi chamado (não importa se foi direto ou via sendStickerSafely)
-    expect(mockBot.sendSticker).toHaveBeenCalled();
+    // Verifica que apenas um sticker foi enviado - via sendStickerSafely
+    expect(mocks.sendStickerSafely).toHaveBeenCalledTimes(1);
+    expect(mocks.sendStickerSafely).toHaveBeenCalledWith(
+      expect.anything(),
+      123456789,
+      "onboarding"
+    );
 
     expect(mockBot.sendMessage).toHaveBeenCalledWith(
       123456789,
@@ -84,6 +89,9 @@ describe("Testes de Onboarding", () => {
     const msg = createMessage(123456789, 123456789, "/start");
     const newUser = mockNewUser(123456789);
 
+    // Resetar contadores de chamadas
+    jest.clearAllMocks();
+
     // Mock para onboardingInProgress
     onboardingInProgress.set(123456789, true);
 
@@ -100,8 +108,13 @@ describe("Testes de Onboarding", () => {
     // Assert
     expect(mocks.createUser).toHaveBeenCalledWith(msg.from);
 
-    // Verifica que o sendSticker foi chamado (não importa se foi direto ou via sendStickerSafely)
-    expect(mockBot.sendSticker).toHaveBeenCalled();
+    // Verifica que apenas um sticker foi enviado - via sendStickerSafely
+    expect(mocks.sendStickerSafely).toHaveBeenCalledTimes(1);
+    expect(mocks.sendStickerSafely).toHaveBeenCalledWith(
+      expect.anything(),
+      123456789,
+      "onboarding"
+    );
 
     expect(mockBot.sendMessage).toHaveBeenCalledTimes(2);
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(

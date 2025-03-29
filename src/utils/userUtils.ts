@@ -1,4 +1,4 @@
-import { prisma } from "../db/client";
+import { prisma, User } from "../db/client";
 import { User as TelegramUser } from "node-telegram-bot-api";
 
 /**
@@ -14,7 +14,7 @@ export const userExists = async (telegramId: number): Promise<boolean> => {
 /**
  * Cria um novo usuário a partir dos dados do Telegram
  */
-export const createUser = async (telegramUser: TelegramUser) => {
+export const createUser = async (telegramUser: TelegramUser): Promise<User> => {
   try {
     const user = await prisma.user.create({
       data: {
@@ -34,7 +34,9 @@ export const createUser = async (telegramUser: TelegramUser) => {
 /**
  * Busca um usuário pelo ID do Telegram
  */
-export const getUserByTelegramId = async (telegramId: number) => {
+export const getUserByTelegramId = async (
+  telegramId: number
+): Promise<User | null> => {
   return prisma.user.findUnique({
     where: { telegramId }
   });

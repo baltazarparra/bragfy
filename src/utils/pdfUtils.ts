@@ -1,9 +1,11 @@
-import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
   formatTimestamp,
   formatUrgencyLabel,
   formatImpactLabel
 } from "./activityUtils";
+import { BragDocument } from "../types";
+import { BragDocumentPdfResult } from "./stickerUtils";
 
 // Definições de tipos para User e Activity caso não estejam disponíveis
 interface User {
@@ -37,254 +39,218 @@ function sanitizeText(text: string): string {
 }
 
 /**
- * Gera um PDF do Brag Document no estilo minimalista Apple
- * @param user Usuário com as informações de perfil
- * @param activities Lista de atividades para incluir no documento
- * @returns Buffer contendo o PDF gerado
+ * Função para geração de PDF utilizando pdf-lib
  */
-export const generateBragDocumentPDF = async (
-  user: User,
-  activities: Activity[]
-): Promise<Buffer> => {
+export async function generateBragDocumentPDF(
+  data: BragDocument
+): Promise<BragDocumentPdfResult> {
   try {
     // Cria um novo documento PDF
     const pdfDoc = await PDFDocument.create();
 
-    // Fontes para o documento
+    // Adiciona uma página
+    let page = pdfDoc.addPage([595.28, 841.89]); // Tamanho A4
+
+    // Obtém as fontes padrão
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const helveticaOblique = await pdfDoc.embedFont(
-      StandardFonts.HelveticaOblique
-    );
 
     // Configurações de layout
-    let page = pdfDoc.addPage([595.28, 841.89]); // A4
-    const { width, height } = page.getSize();
-    const margin = 60; // Aumentando margem para mais espaço em branco (estilo Apple)
+    const margin = 50;
+    const pageWidth = page.getWidth() - 2 * margin;
+    const lineHeight = 14;
+    let currentY = page.getHeight() - margin;
 
-    // Cores - Ajustadas para estilo Apple mais moderno
-    const textColor = rgb(0.1, 0.1, 0.1); // Preto menos intenso
-    const accentColor = rgb(0, 0.45, 0.9); // Azul Apple
-    const lightGray = rgb(0.95, 0.95, 0.95); // Mais sutil
-    const darkGray = rgb(0.4, 0.4, 0.4); // Cinza médio para melhor legibilidade
-
-    // Estilo de tipografia refinada e hierarquia clara
-    const titleSize = 28; // Maior para maior impacto visual
-    const subtitleSize = 20; // Nova categoria
-    const normalSize = 11; // Ligeiramente menor para elegância
-    const smallSize = 9; // Informações secundárias
-
-    // Posição inicial para escrita
-    let y = height - margin;
-    const contentWidth = width - 2 * margin;
-
-    // Título principal - Design simplificado
-    page.drawText(sanitizeText("BRAG DOCUMENT"), {
-      x: margin,
-      y,
-      size: titleSize,
-      font: helveticaBold,
-      color: textColor
-    });
-    y -= 50; // Maior espaçamento após título
-
-    // Linha separadora com gradiente sutil
-    const lineWidth = width - 2 * margin;
-    for (let i = 0; i < lineWidth; i += 2) {
-      const opacity = Math.sin((i / lineWidth) * Math.PI) * 0.5 + 0.5;
-      page.drawLine({
-        start: { x: margin + i, y },
-        end: { x: margin + i + 1, y },
-        thickness: 1,
-        color: rgb(0.9 * opacity, 0.9 * opacity, 0.9 * opacity)
+    // Função helper para adicionar texto
+    const addText = (
+      text: string,
+      font: any,
+      size: number,
+      indent: number = 0
+    ) => {
+      const sanitizedText = sanitizeText(text || "");
+      page.drawText(sanitizedText, {
+        x: margin + indent,
+        y: currentY,
+        size,
+        font,
+        color: rgb(0, 0, 0)
       });
-    }
-    y -= 40; // Mais espaço após o separador
+      currentY -= lineHeight * (size / 12);
+    };
 
-    // Informações do usuário - Nome com destaque
-    const userName = sanitizeText(
-      `${user.firstName}${user.lastName ? " " + user.lastName : ""}`
-    );
-    page.drawText(userName, {
-      x: margin,
-      y,
-      size: subtitleSize,
-      font: helveticaBold,
-      color: textColor
-    });
-    y -= 50; // Maior espaçamento antes da próxima seção
-
-    // Marca d'água sutil no fundo (opcional)
-    page.drawText(sanitizeText("BRAGFY"), {
-      x: width - 2 * margin,
-      y: height / 2,
-      size: 100,
-      font: helveticaBold,
-      color: rgb(0.98, 0.98, 0.98), // Quase invisível
-      rotate: degrees(-90)
-    });
-
-    // Título da seção de atividades com maior destaque
-    page.drawText(sanitizeText("ATIVIDADES"), {
-      x: margin,
-      y,
-      size: subtitleSize - 2, // Ligeiramente menor que o nome do usuário
-      font: helveticaBold,
-      color: textColor
-    });
-    y -= 30;
-
-    // Texto informativo sobre o período
-    const periodoInfo = sanitizeText(
-      `${activities.length} ${activities.length === 1 ? "atividade registrada" : "atividades registradas"}`
-    );
-    page.drawText(periodoInfo, {
-      x: margin,
-      y,
-      size: smallSize,
-      font: helveticaOblique,
-      color: darkGray
-    });
-    y -= 25;
-
-    // Lista de atividades com layout aprimorado
-    for (let i = 0; i < activities.length; i++) {
-      const activity = activities[i];
-
-      // Adiciona retângulo sutil para destacar cada atividade
-      page.drawRectangle({
-        x: margin - 10,
-        y: y - 5,
-        width: width - 2 * margin + 20,
-        height: 2,
-        color: lightGray
-      });
-
-      const timestamp = sanitizeText(formatTimestamp(activity.date));
-
-      // Data/hora da atividade
-      page.drawText(timestamp, {
-        x: margin,
-        y,
-        size: smallSize,
-        font: helveticaOblique,
-        color: darkGray
-      });
-      y -= 22;
-
-      // Sanitiza o conteúdo da atividade antes de dividi-lo
-      const sanitizedContent = sanitizeText(activity.content);
-      console.log(`Conteúdo sanitizado: "${sanitizedContent}"`);
-
-      // Conteúdo da atividade - Maior destaque para o conteúdo principal
-      const contentLines = fitTextToWidth(
-        sanitizedContent,
-        helveticaFont,
-        normalSize,
-        contentWidth
+    // Função helper para adicionar texto quebrado em linhas
+    const addMultilineText = (
+      text: string,
+      font: any,
+      size: number,
+      indent: number = 0,
+      maxWidth: number = pageWidth - indent
+    ) => {
+      const textLines = fitTextToWidth(
+        sanitizeText(text || ""),
+        font,
+        size,
+        maxWidth
       );
 
-      for (const line of contentLines) {
+      for (const line of textLines) {
+        if (currentY < margin + 50) {
+          // Adiciona nova página se não houver espaço suficiente
+          page.drawText("Continua na próxima página...", {
+            x: margin,
+            y: margin,
+            size: 10,
+            font: helveticaFont,
+            color: rgb(0.5, 0.5, 0.5)
+          });
+
+          page = pdfDoc.addPage([595.28, 841.89]);
+          currentY = page.getHeight() - margin;
+        }
+
         page.drawText(line, {
-          x: margin + 5, // Indentação sutil
-          y,
-          size: normalSize,
-          font: helveticaFont,
-          color: textColor
+          x: margin + indent,
+          y: currentY,
+          size,
+          font,
+          color: rgb(0, 0, 0)
         });
-        y -= 16;
+        currentY -= lineHeight * (size / 12);
       }
 
-      // Adiciona informações de urgência e impacto
-      y -= 5; // Pequeno espaço adicional
+      // Adiciona um pequeno espaço extra após blocos de múltiplas linhas
+      currentY -= lineHeight * 0.5;
+    };
 
-      // Urgência, se disponível
-      if (activity.urgency) {
-        const urgencyLabel = sanitizeText(
-          `• Urgência: ${formatUrgencyLabel(activity.urgency)}`
-        );
-        page.drawText(urgencyLabel, {
-          x: margin + 10, // Maior indentação para mostrar hierarquia
-          y,
-          size: smallSize + 1,
-          font: helveticaFont,
-          color: darkGray
-        });
-        y -= 16;
-      }
+    // Adiciona cabeçalho
+    addText("BRAG DOCUMENT", helveticaBold, 18);
+    currentY -= 20;
 
-      // Impacto, se disponível
-      if (activity.impact) {
-        const impactLabel = sanitizeText(
-          `• Impacto: ${formatImpactLabel(activity.impact)}`
-        );
-        page.drawText(impactLabel, {
-          x: margin + 10, // Maior indentação para mostrar hierarquia
-          y,
-          size: smallSize + 1,
-          font: helveticaFont,
-          color: darkGray
-        });
-        y -= 16;
-      }
+    // Adiciona informações do usuário
+    const userName = `${data.user.firstName}${data.user.lastName ? " " + data.user.lastName : ""}`;
+    addText(userName, helveticaBold, 16);
 
-      // Maior espaçamento entre atividades para clareza visual
-      y -= 30;
+    if (data.user.username) {
+      addText(`@${data.user.username}`, helveticaFont, 12);
+    }
 
-      // Verifica se precisa de uma nova página
-      if (y < 100) {
-        page = pdfDoc.addPage([595.28, 841.89]);
-        y = height - margin;
+    currentY -= 10;
+
+    // Adiciona informações do período
+    let periodText = "Último dia";
+    if (data.period === 7) {
+      periodText = "Últimos 7 dias";
+    } else if (data.period === 30) {
+      periodText = "Últimos 30 dias";
+    }
+
+    addText(`Período: ${periodText}`, helveticaFont, 12);
+    addText(
+      `Gerado em: ${formatTimestamp(new Date(data.generatedAt))}`,
+      helveticaFont,
+      12
+    );
+
+    currentY -= 30;
+
+    // Adiciona uma linha divisória
+    page.drawLine({
+      start: { x: margin, y: currentY + 10 },
+      end: { x: page.getWidth() - margin, y: currentY + 10 },
+      thickness: 1,
+      color: rgb(0.8, 0.8, 0.8)
+    });
+
+    currentY -= 20;
+
+    // Adiciona cabeçalho da lista de atividades
+    addText("ATIVIDADES", helveticaBold, 14);
+    currentY -= 10;
+
+    // Verifica se há atividades
+    if (!data.activities || data.activities.length === 0) {
+      addText("Nenhuma atividade registrada neste período.", helveticaFont, 12);
+    } else {
+      // Itera sobre as atividades
+      for (let i = 0; i < data.activities.length; i++) {
+        const activity = data.activities[i];
+
+        // Adiciona data da atividade
+        const activityDate =
+          activity.date instanceof Date
+            ? formatTimestamp(activity.date)
+            : formatTimestamp(new Date(activity.date));
+
+        addText(activityDate, helveticaBold, 12);
+
+        // Adiciona conteúdo da atividade
+        addMultilineText(activity.content, helveticaFont, 12, 10);
+
+        // Adiciona urgência e impacto se disponíveis
+        if (activity.urgency) {
+          addText(
+            `Urgência: ${formatUrgencyLabel(activity.urgency)}`,
+            helveticaFont,
+            11,
+            10
+          );
+        }
+
+        if (activity.impact) {
+          addText(
+            `Impacto: ${formatImpactLabel(activity.impact)}`,
+            helveticaFont,
+            11,
+            10
+          );
+        }
+
+        // Adiciona separador entre atividades, exceto após a última
+        if (i < data.activities.length - 1) {
+          currentY -= 10;
+          page.drawLine({
+            start: { x: margin, y: currentY + 5 },
+            end: { x: page.getWidth() - margin, y: currentY + 5 },
+            thickness: 0.5,
+            color: rgb(0.9, 0.9, 0.9)
+          });
+          currentY -= 15;
+        }
       }
     }
 
-    // Rodapé com refinamentos estéticos
-    const lastPage = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-
-    // Linha fina na parte inferior
-    lastPage.drawLine({
-      start: { x: margin, y: margin / 2 + 15 },
-      end: { x: width - margin, y: margin / 2 + 15 },
-      thickness: 0.5,
-      color: lightGray
-    });
-
-    // Timestamp de geração
-    const generationText = sanitizeText(
-      `Gerado em ${formatTimestamp(new Date())}`
-    );
-    lastPage.drawText(generationText, {
+    // Adiciona rodapé
+    const footerY = margin;
+    page.drawText("Bragfy - Seu assistente para gestão de Brag Documents", {
       x: margin,
-      y: margin / 2,
-      size: smallSize,
-      font: helveticaOblique,
-      color: darkGray
+      y: footerY,
+      size: 10,
+      font: helveticaFont,
+      color: rgb(0.5, 0.5, 0.5)
     });
 
-    // Logo ou texto da marca à direita
-    const brandText = sanitizeText("Bragfy");
-    lastPage.drawText(brandText, {
-      x:
-        width - margin - helveticaBold.widthOfTextAtSize(brandText, normalSize),
-      y: margin / 2,
-      size: normalSize,
-      font: helveticaBold,
-      color: accentColor
-    });
-
-    // Serializa o PDF para bytes
+    // Serializa o documento para um buffer
     const pdfBytes = await pdfDoc.save();
+    const buffer = Buffer.from(pdfBytes);
 
-    // Converte para Buffer e retorna
-    return Buffer.from(pdfBytes);
+    console.log(`PDF gerado com sucesso: ${buffer.length} bytes`);
+
+    return {
+      success: true,
+      buffer
+    };
   } catch (error) {
     console.error("Erro ao gerar PDF:", error);
-    throw new Error("Falha ao gerar PDF do Brag Document");
+    return {
+      success: false,
+      error: "Não foi possível gerar o PDF"
+    };
   }
-};
+}
 
 /**
- * Função auxiliar para quebrar texto longo em múltiplas linhas
+ * Quebra o texto em múltiplas linhas para caber na largura especificada
  */
 function fitTextToWidth(
   text: string,
@@ -292,25 +258,32 @@ function fitTextToWidth(
   fontSize: number,
   maxWidth: number
 ): string[] {
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let currentLine = "";
+  if (!text) return [""];
 
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const width = font.widthOfTextAtSize(testLine, fontSize);
+  // Implementação simples: quebra por parágrafos
+  const paragraphs = text.split("\n");
+  const result: string[] = [];
 
-    if (width <= maxWidth) {
-      currentLine = testLine;
+  for (const paragraph of paragraphs) {
+    // Para cada parágrafo, verifica se precisa ser quebrado por tamanho
+    if (paragraph.length <= 80) {
+      // Estimativa simples para texto que cabe na linha
+      result.push(paragraph);
     } else {
-      lines.push(currentLine);
-      currentLine = word;
+      // Quebra textos longos em chunks de aproximadamente 80 caracteres
+      // Isso é uma aproximação simples; o ideal seria medir o texto com a fonte real
+      let remainingText = paragraph;
+      while (remainingText.length > 0) {
+        const chunkSize = Math.min(80, remainingText.length);
+        // Tenta quebrar em espaços para não cortar palavras
+        let breakPoint = remainingText.lastIndexOf(" ", chunkSize);
+        if (breakPoint <= 0) breakPoint = chunkSize;
+
+        result.push(remainingText.substring(0, breakPoint));
+        remainingText = remainingText.substring(breakPoint).trim();
+      }
     }
   }
 
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-
-  return lines;
+  return result;
 }

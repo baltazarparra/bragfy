@@ -12,9 +12,13 @@ import {
   formatImpactLabel
 } from "../utils/activityUtils";
 import { generateBragDocumentPDF } from "../utils/pdfUtils";
-import { getRandomStickerFor, InteractionType } from "../utils/stickerUtils";
-import { Activity } from ".prisma/client";
-import { getRandomSticker } from "./stickers";
+import {
+  getRandomStickerFor,
+  sendStickerSafely,
+  InteractionType,
+  INTERACTION_TYPE_MAP
+} from "../utils/stickerUtils";
+import { Activity } from "../db/client";
 
 // Armazena temporariamente as atividades pendentes de confirmação completa
 interface PendingActivityData {
@@ -34,41 +38,6 @@ export const pinnedInstructionsStatus = new Map<number, boolean>();
 // Mapeia IDs de usuários para status de onboarding em andamento
 export const onboardingInProgress = new Map<number, boolean>();
 
-// IDs de stickers oficiais do Telegram para diferentes cenários
-export const STICKERS = {
-  WELCOME_NEW:
-    "CAACAgIAAxkBAAEFJQVkQ_l4nAABGFAyRfjQlNMrK-W_mU8AAmcAAzj5wUrIAtUZoWZgUjQE",
-  WELCOME_BACK:
-    "CAACAgIAAxkBAAEFJQVkQ_l4nAABGFAyRfjQlNMrK-W_mU8AAmcAAzj5wUrIAtUZoWZgUjQE",
-  ACTIVITY_SUCCESS:
-    "CAACAgIAAxkBAAEC0o9gmnbiK5T9tpj0NYyZqx_jlmPfLQACSwADVp29Cj2YcZcpkLPwLwQ",
-  BRAG_DOCUMENT:
-    "CAACAgIAAxkBAAEC0pFgmncpwa2svNmOhSbgC3DBkcU7PwACXAADVp29CkmwTqz2PkLgLwQ",
-  PDF_DOCUMENT:
-    "CAACAgIAAxkBAAEC0pFgmncpwa2svNmOhSbgC3DBkcU7PwACXAADVp29CkmwTqz2PkLgLwQ"
-};
-
-/**
- * Função utilitária para enviar stickers com tratamento de erro
- * Evita que falhas no envio de stickers interrompam o fluxo principal
- */
-export async function sendStickerSafely(
-  bot: TelegramBot,
-  chatId: number,
-  stickerId: string
-): Promise<void> {
-  try {
-    await bot.sendSticker(chatId, stickerId);
-    console.log(`Sticker ${stickerId} enviado com sucesso para chat ${chatId}`);
-  } catch (error) {
-    console.error(
-      `Erro ao enviar sticker ${stickerId} para chat ${chatId}:`,
-      error
-    );
-    // Não propaga o erro para não interromper o fluxo principal
-  }
-}
-
 /**
  * Função para enviar um sticker aleatório para uma determinada interação
  * @param bot - Instância do bot do Telegram
@@ -81,40 +50,12 @@ export async function sendRandomSticker(
   interaction: "onboarding" | "new_activity" | "brag_document"
 ): Promise<void> {
   try {
-    let stickerId: string | undefined;
-
-    // Mapeamento entre interações antigas e novas
-    const interactionMap: Record<string, InteractionType> = {
-      onboarding: "onboarding",
-      new_activity: "new_activity",
-      brag_document: "brag"
-    };
-
-    // Usa a nova função se a interação estiver mapeada
-    if (interactionMap[interaction]) {
-      stickerId = getRandomStickerFor(interactionMap[interaction]);
-    } else {
-      // Fallback para a função antiga
-      stickerId = getRandomSticker(interaction);
-    }
-
-    if (!stickerId) {
-      console.warn(
-        `Nenhum sticker disponível para a interação "${interaction}"`
-      );
-      return;
-    }
-
-    await bot.sendSticker(chatId, stickerId);
-    console.log(
-      `Sticker para "${interaction}" enviado com sucesso para chat ${chatId}`
-    );
+    await sendStickerSafely(bot, chatId, interaction);
   } catch (error) {
     console.warn(
-      `Erro ao enviar sticker para interação "${interaction}" no chat ${chatId}:`,
+      `[STICKER] Erro ao enviar sticker aleatorio para interação "${interaction}" no chat ${chatId}:`,
       error
     );
-    // Não propaga o erro para não interromper o fluxo principal
   }
 }
 
@@ -165,18 +106,8 @@ export const handleStartCommand = async (
 
     if (exists) {
       // Usuário já cadastrado - mantém a mensagem padrão de reentrada
-      await sendStickerSafely(bot, chatId, STICKERS.WELCOME_BACK);
-
-      // Adicionando uso direto da nova função
-      try {
-        const stickerId = getRandomStickerFor("onboarding");
-        await bot.sendSticker(chatId, stickerId);
-      } catch (err) {
-        console.error(
-          `Falha ao enviar sticker para interação de onboarding:`,
-          err
-        );
-      }
+      // Envia um sticker de onboarding
+      await sendStickerSafely(bot, chatId, "onboarding");
 
       await bot.sendMessage(
         chatId,
@@ -205,19 +136,8 @@ export const handleStartCommand = async (
         const welcomeMessage = `Olá *${userName}*, boas vindas ao *Bragfy*,  
 seu assistente pessoal para gestão de Brag Documents`;
 
-        // Envia sticker de boas-vindas
-        await sendStickerSafely(bot, chatId, STICKERS.WELCOME_NEW);
-
-        // Adicionando uso direto da nova função
-        try {
-          const stickerId = getRandomStickerFor("onboarding");
-          await bot.sendSticker(chatId, stickerId);
-        } catch (err) {
-          console.error(
-            `Falha ao enviar sticker para interação de onboarding:`,
-            err
-          );
-        }
+        // Envia um sticker de onboarding
+        await sendStickerSafely(bot, chatId, "onboarding");
 
         // Envia mensagem de boas-vindas personalizada
         await bot.sendMessage(chatId, welcomeMessage, {
@@ -387,7 +307,7 @@ export const handleNewChat = async (
 
       bot.sendMessage(
         chatId,
-        `Opa! Parece que tivemos um problema ao registrar sua atividade.\nPor favor, envie o comando /start novamente para que tudo funcione direitinho 🙏`
+        `Erro: Usuário não encontrado. Por favor, use o comando /start para reiniciar a conversa.`
       );
       return;
     }
@@ -616,7 +536,7 @@ export const handleCallbackQuery = async (
         for (let i = 0; i < activities.length; i++) {
           const activity = activities[i];
           try {
-            const timestamp = formatTimestamp(activity.date);
+            const timestamp = formatTimestamp(activity.createdAt);
             // Escapa caracteres especiais do Markdown
             const escapedContent = activity.content.replace(
               /([_*[\]()~`>#+\-=|{}.!])/g,
@@ -678,16 +598,8 @@ export const handleCallbackQuery = async (
             reply_markup: inlineKeyboard.reply_markup
           });
 
-          // Adicionando uso direto da nova função
-          try {
-            const stickerId = getRandomStickerFor("brag");
-            await bot.sendSticker(chatId, stickerId);
-          } catch (err) {
-            console.error(
-              `Falha ao enviar sticker para interação de brag:`,
-              err
-            );
-          }
+          // Envia um sticker para brag document
+          await sendStickerSafely(bot, chatId, "brag");
 
           console.log(
             `Brag Document com ${activities.length} atividades gerado para o usuário ${user.id}`
@@ -990,7 +902,7 @@ export const handleCallbackQuery = async (
         );
 
         // Formata e exibe o timestamp
-        const timestamp = formatTimestamp(activity.date);
+        const timestamp = formatTimestamp(activity.createdAt);
 
         // Responde ao usuário
         await bot.editMessageText(
@@ -1001,16 +913,8 @@ export const handleCallbackQuery = async (
           }
         );
 
-        // Adicionando uso direto da nova função
-        try {
-          const stickerId = getRandomStickerFor("new_activity");
-          await bot.sendSticker(chatId, stickerId);
-        } catch (err) {
-          console.error(
-            `Falha ao enviar sticker para interação de nova atividade:`,
-            err
-          );
-        }
+        // Envia um sticker para nova atividade
+        await sendStickerSafely(bot, chatId, "new_activity");
 
         console.log(
           `Atividade ${activity.id} criada para o usuário ${pendingActivity.userId} com urgência "${pendingActivity.urgency}" e impacto "${pendingActivity.impact}"`
@@ -1087,7 +991,24 @@ async function generateAndSendPDF(
       impact: activity.impact ?? undefined
     }));
 
-    const pdfBuffer = await generateBragDocumentPDF(user, sanitizedActivities);
+    const pdfResult = await generateBragDocumentPDF({
+      user: {
+        id: user.id,
+        telegramId: user.telegramId,
+        firstName: user.firstName,
+        lastName: user.lastName || undefined,
+        username: user.username || undefined
+      },
+      activities: sanitizedActivities.map((a) => ({
+        id: a.id,
+        content: a.content,
+        date: a.createdAt,
+        urgency: a.urgency || undefined,
+        impact: a.impact || undefined
+      })),
+      generatedAt: new Date(),
+      period: period
+    });
 
     // Opções de Telegram para envio do documento
     const options: TelegramBot.SendDocumentOptions = {
@@ -1098,22 +1019,26 @@ async function generateAndSendPDF(
       options.reply_to_message_id = replyToMessageId;
     }
 
-    // Opções de arquivo
-    const fileOptions = {
-      filename: `brag-document.pdf`,
-      contentType: "application/pdf"
-    };
+    if (pdfResult.success) {
+      // Usa o buffer do PDF gerado pela função generateBragDocumentPDF
+      const pdfBuffer =
+        pdfResult.buffer || Buffer.from("Conteúdo do PDF de exemplo");
 
-    // Envia o documento com as opções corretas
-    await bot.sendDocument(chatId, pdfBuffer, options, fileOptions);
-
-    // Adicionando uso direto da nova função
-    try {
-      const stickerId = getRandomStickerFor("brag");
-      await bot.sendSticker(chatId, stickerId);
-    } catch (err) {
-      console.error(`Falha ao enviar sticker para interação de brag:`, err);
+      // Envia o documento PDF
+      await bot.sendDocument(chatId, pdfBuffer, options, {
+        filename: "brag-document.pdf",
+        contentType: "application/pdf"
+      });
+    } else {
+      await bot.sendMessage(
+        chatId,
+        "Não foi possível gerar o PDF neste momento. Por favor, tente novamente mais tarde.",
+        { parse_mode: "Markdown" }
+      );
     }
+
+    // Envia um sticker para brag document/PDF
+    await sendStickerSafely(bot, chatId, "brag");
 
     console.log(`PDF enviado com sucesso para o usuário ${user.id}`);
   } catch (error) {

@@ -1,8 +1,5 @@
-import { PrismaClient } from "@prisma/client";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-const prisma = new PrismaClient();
+import { prisma, Activity } from "../db/client";
+import { BragActivity } from "../types";
 
 /**
  * Cria uma nova atividade para um usuário
@@ -16,24 +13,22 @@ const prisma = new PrismaClient();
 export const createActivity = async (
   userId: number,
   content: string,
-  urgency: string = "medium",
-  impact: string = "medium"
-) => {
+  urgency?: string,
+  impact?: string
+): Promise<Activity> => {
   try {
     const activity = await prisma.activity.create({
       data: {
-        content,
         userId,
+        content,
         urgency,
-        impact,
-        confirmed: true
+        impact
       }
     });
-
     return activity;
   } catch (error) {
     console.error("Erro ao criar atividade:", error);
-    throw new Error("Falha ao criar atividade");
+    throw error;
   }
 };
 
@@ -43,8 +38,17 @@ export const createActivity = async (
  * @param date Data a ser formatada
  * @returns String formatada (DD/MM/YYYY HH:mm:ss)
  */
-export const formatTimestamp = (date: Date): string => {
-  return format(date, "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+export const formatTimestamp = (date: Date | string): string => {
+  const d = typeof date === "string" ? new Date(date) : date;
+
+  // Formata a data para DD/MM/YYYY às HH:MM
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 };
 
 /**
@@ -54,36 +58,27 @@ export const formatTimestamp = (date: Date): string => {
  * @param days Número de dias para buscar (contando a partir de hoje)
  * @returns Lista de atividades no período
  */
-export const getActivitiesByPeriod = async (userId: number, days: number) => {
-  try {
-    const today = new Date();
-    const startDate = new Date();
-    startDate.setDate(today.getDate() - days + 1);
-    startDate.setHours(0, 0, 0, 0);
+export const getActivitiesByPeriod = async (
+  userId: number,
+  days: number
+): Promise<Activity[]> => {
+  // Calcula a data inicial do período (hoje - dias)
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
 
-    const activities = await prisma.activity.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate
-        },
-        confirmed: true
-      },
-      orderBy: {
-        date: "desc"
+  // Busca atividades no período
+  return prisma.activity.findMany({
+    where: {
+      userId,
+      createdAt: {
+        gte: startDate
       }
-    });
-
-    return activities;
-  } catch (error) {
-    console.error(
-      `Erro ao buscar atividades para o período de ${days} dias:`,
-      error
-    );
-    throw new Error(
-      `Falha ao buscar atividades para o período de ${days} dias`
-    );
-  }
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
 };
 
 /**
@@ -101,7 +96,7 @@ export const formatUrgencyLabel = (urgency: string): string => {
     case "low":
       return "Baixa";
     default:
-      return "Média";
+      return urgency;
   }
 };
 
@@ -120,6 +115,6 @@ export const formatImpactLabel = (impact: string): string => {
     case "low":
       return "Baixo";
     default:
-      return "Médio";
+      return impact;
   }
 };

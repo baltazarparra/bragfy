@@ -1,10 +1,28 @@
 import { PrismaClient } from "@prisma/client";
 
-// Evita múltiplas instâncias do Prisma Client em desenvolvimento
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// Interface para o tipo User
+export interface User {
+  id: number;
+  telegramId: number;
+  firstName: string;
+  lastName?: string | null;
+  username?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-export const prisma = globalForPrisma.prisma || new PrismaClient();
+// Interface para o tipo Activity
+export interface Activity {
+  id: number;
+  content: string;
+  userId: number;
+  urgency?: string | null;
+  impact?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Exporta uma instância real do PrismaClient
+export const prisma = new PrismaClient();
 
 export default prisma;
