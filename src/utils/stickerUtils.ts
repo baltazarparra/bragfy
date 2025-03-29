@@ -23,44 +23,61 @@ export const INTERACTION_TYPE_MAP: Record<string, InteractionType> = {
   welcome_back: "onboarding"
 };
 
+// Armazena o último sticker enviado para cada tipo de interação para evitar repetição
+const lastSentSticker: Record<InteractionType, string> = {
+  onboarding: "",
+  new_activity: "",
+  brag: "",
+  welcome_new: "",
+  welcome_back: ""
+};
+
 const STICKER_MAP: Record<InteractionType, string[]> = {
   onboarding: [
-    "CAACAgIAAxkBAAEOLZtn5w9dD792kbsjCWtu16y2s4POmAAC8AYAApb6EgUsL06hSQK6sjYE",
-    "CAACAgIAAxkBAAEN1v1ntNiE0ug9crSsb0VZ-8KeGZprUAAC-wADVp29ClYO2zPbysnmNgQ",
-    "CAACAgIAAxkBAAEOLBFn5h_sTUlvj0Im2si9qtIt1ID2mAAC9gADVp29CvfbTiFAPqWKNgQ"
+    "CAACAgEAAxkBAAEOLdFn5xfspnjtn2Dj0O4M4DfSUPYUhAACWwcAAr-MkAT_2_Ok8Yw0zjYE",
+    "CAACAgEAAxkBAAEOLt1n6AUvXI5H7ZsTcxsacZ_bQYI6AQACWgcAAr-MkAS28TuOYHM0EzYE",
+    "CAACAgIAAxkBAAEN1PNntCwsfN50bB74ZPhvIsdVakn7OgACAQEAAladvQoivp8OuMLmNDYE",
+    "CAACAgEAAxkBAAEOLuFn6AWOWnZgfFdjV8mqx7pleuHbuwACIQIAAkWd3QXadBWdq01gFTYE",
+    "CAACAgIAAxkBAAEOLuNn6AXdbGjpR0XE-Cowzy1rtcl5bgACfgUAAvoLtghVynd3kd-TuDYE"
   ],
   new_activity: [
-    "CAACAgEAAxkBAAEOLb9n5xcsBq6x0HDSnQK_QmRxL_Su8wACRQEAAlBLwgOfscEasasUCzYE",
-    "CAACAgEAAxkBAAEOLb1n5xcg-2hJVFaEnLtIE5WZHKlJzQACHAEAAlBLwgOC5Y2XK4Uu8DYE",
-    "CAACAgIAAxkBAAEOLbtn5xcReUM7QPZOW0NOazOnAwGX9wAChwkAAgi3GQLxR2JQbSUnAAE2BA",
-    "CAACAgIAAxkBAAEN__5nyrPB4f7vUt-5xYFshzsvdEi9eQAC-gADVp29Ckfe-pdxdHEBNgQ",
-    "CAACAgIAAxkBAAEN1u9ntNLGPdiveCy_xoajSoDoEAsgLAAC9AADVp29ChFYsPXZ_VVJNgQ"
+    "CAACAgIAAxkBAAEN1u9ntNLGPdiveCy_xoajSoDoEAsgLAAC9AADVp29ChFYsPXZ_VVJNgQ",
+    "CAACAgEAAxkBAAEOLcln5xeJILga9ba2Y_RACrtXa-JVoAACWAEAAlBLwgNF1HUIrz7N4DYE",
+    "CAACAgEAAxkBAAEOLcVn5xd9AAGWi8ZdD1MJteKH4UKg5YEAAigBAAJQS8IDzwMJl2zDu7A2BA",
+    "CAACAgEAAxkBAAEOLuln6AZSYJlItkToYAAB8QZbMTt5LOEAAhoCAAJFnd0Ftr-Y7AABFLVYNgQ",
+    "CAACAgEAAxkBAAEOLudn6AZPWgUpFiuT8qrZazJ1WqzZ6wACQQIAAkWd3QUAAUvgRzYTNxo2BA",
+    "CAACAgIAAxkBAAEOLuVn6AZCtUOFx-Nxys3l8V0P0wdYBwACbgUAAvoLtgh7rzojfTrKDjYE"
   ],
   brag: [
-    "CAACAgEAAxkBAAEOLdFn5xfspnjtn2Dj0O4M4DfSUPYUhAACWwcAAr-MkAT_2_Ok8Yw0zjYE",
-    "CAACAgEAAxkBAAEOLc9n5xfazqeB8U44g2xlNaUvLaJ-YAACMgEAAv0KkASY50AccbMPRDYE",
-    "CAACAgIAAxkBAAEN4Cpnuc56nBLY9563-iemBGmdOyQ-SAACEwADwDZPE6qzh_d_OMqlNgQ",
-    "CAACAgIAAxkBAAEOLctn5xeeRT8V23rIQwntBAtLGU1R1AACBwEAAladvQq_tyZhIpO5ojYE",
-    "CAACAgEAAxkBAAEOLcln5xeJILga9ba2Y_RACrtXa-JVoAACWAEAAlBLwgNF1HUIrz7N4DYE",
-    "CAACAgEAAxkBAAEOLcdn5xeC1zXuu5mI7kXDfvMnOivdbQACJQEAAlBLwgPNNCjjtvh2mzYE",
-    "CAACAgEAAxkBAAEOLcVn5xd9AAGWi8ZdD1MJteKH4UKg5YEAAigBAAJQS8IDzwMJl2zDu7A2BA",
+    "CAACAgIAAxkBAAEOLwln6AdWxbjgTaB1NWS8KISU-0PK2AACfgcAAlOx9wMss8IS7z5EBDYE",
+    "CAACAgEAAxkBAAEOLwNn6AdN37DATUq1P-j6W7vaeiHMNAAC5AIAAttS9wGxEpTjmDP13jYE",
+    "CAACAgIAAxkBAAEOLv9n6Ac9NyrgHB84bulCv-bV3ppI8gACwAEAAzigCgfhO93Ur_AiNgQ",
+    "CAACAgEAAxkBAAEOLv1n6Acn6Jn2kkW93FdfSr2w8nw9cwACNQADBE-nFiYkaCi0OBvBNgQ",
+    "CAACAgIAAxkBAAEOLbtn5xcReUM7QPZOW0NOazOnAwGX9wAChwkAAgi3GQLxR2JQbSUnAAE2BA",
+    "CAACAgQAAxkBAAEOLcFn5xdt4-F8LnxQk0IRwIQNs0j5fQACSwEAAhA1aAABq4cgFB_0m3c2BA",
     "CAACAgIAAxkBAAEN3jZnuDFrQjM9UFkluMKs_JNY9hgVaAACAwEAAladvQoC5dF4h-X6TzYE",
-    "CAACAgQAAxkBAAEOLcFn5xdt4-F8LnxQk0IRwIQNs0j5fQACSwEAAhA1aAABq4cgFB_0m3c2BA"
+    "CAACAgEAAxkBAAEOLdFn5xfspnjtn2Dj0O4M4DfSUPYUhAACWwcAAr-MkAT_2_Ok8Yw0zjYE",
+    "CAACAgIAAxkBAAEOLctn5xeeRT8V23rIQwntBAtLGU1R1AACBwEAAladvQq_tyZhIpO5ojYE",
+    "CAACAgEAAxkBAAEOLcdn5xeC1zXuu5mI7kXDfvMnOivdbQACJQEAAlBLwgPNNCjjtvh2mzYE"
   ],
   welcome_new: [
-    "CAACAgIAAxkBAAEOLZtn5w9dD792kbsjCWtu16y2s4POmAAC8AYAApb6EgUsL06hSQK6sjYE",
-    "CAACAgIAAxkBAAEN1v1ntNiE0ug9crSsb0VZ-8KeGZprUAAC-wADVp29ClYO2zPbysnmNgQ",
-    "CAACAgIAAxkBAAEOLBFn5h_sTUlvj0Im2si9qtIt1ID2mAAC9gADVp29CvfbTiFAPqWKNgQ"
+    "CAACAgEAAxkBAAEOLdFn5xfspnjtn2Dj0O4M4DfSUPYUhAACWwcAAr-MkAT_2_Ok8Yw0zjYE",
+    "CAACAgEAAxkBAAEOLt1n6AUvXI5H7ZsTcxsacZ_bQYI6AQACWgcAAr-MkAS28TuOYHM0EzYE",
+    "CAACAgIAAxkBAAEN1PNntCwsfN50bB74ZPhvIsdVakn7OgACAQEAAladvQoivp8OuMLmNDYE",
+    "CAACAgEAAxkBAAEOLuFn6AWOWnZgfFdjV8mqx7pleuHbuwACIQIAAkWd3QXadBWdq01gFTYE",
+    "CAACAgIAAxkBAAEOLuNn6AXdbGjpR0XE-Cowzy1rtcl5bgACfgUAAvoLtghVynd3kd-TuDYE"
   ],
   welcome_back: [
-    "CAACAgIAAxkBAAEOLZtn5w9dD792kbsjCWtu16y2s4POmAAC8AYAApb6EgUsL06hSQK6sjYE",
-    "CAACAgIAAxkBAAEN1v1ntNiE0ug9crSsb0VZ-8KeGZprUAAC-wADVp29ClYO2zPbysnmNgQ",
-    "CAACAgIAAxkBAAEOLBFn5h_sTUlvj0Im2si9qtIt1ID2mAAC9gADVp29CvfbTiFAPqWKNgQ"
+    "CAACAgEAAxkBAAEOLdFn5xfspnjtn2Dj0O4M4DfSUPYUhAACWwcAAr-MkAT_2_Ok8Yw0zjYE",
+    "CAACAgEAAxkBAAEOLt1n6AUvXI5H7ZsTcxsacZ_bQYI6AQACWgcAAr-MkAS28TuOYHM0EzYE",
+    "CAACAgIAAxkBAAEN1PNntCwsfN50bB74ZPhvIsdVakn7OgACAQEAAladvQoivp8OuMLmNDYE",
+    "CAACAgEAAxkBAAEOLuFn6AWOWnZgfFdjV8mqx7pleuHbuwACIQIAAkWd3QXadBWdq01gFTYE",
+    "CAACAgIAAxkBAAEOLuNn6AXdbGjpR0XE-Cowzy1rtcl5bgACfgUAAvoLtghVynd3kd-TuDYE"
   ]
 };
 
 /**
- * Retorna um sticker aleatório para um tipo de interação
+ * Retorna um sticker aleatório para um tipo de interação, evitando repetição consecutiva
  * @param interactionType Tipo de interação (onboarding, new_activity, brag) ou compatível com legado
  * @returns ID do sticker ou string vazia se nenhum estiver disponível
  */
@@ -86,8 +103,21 @@ export function getRandomStickerFor(interactionType: string): string {
     return "";
   }
 
-  const randomIndex = Math.floor(Math.random() * stickers.length);
-  const stickerId = stickers[randomIndex];
+  // Guarda o último sticker enviado para este tipo de interação
+  const lastSticker = lastSentSticker[normalizedType as InteractionType];
+
+  // Filtra os stickers para evitar repetir o último, se houver mais de um sticker disponível
+  let availableStickers = stickers;
+  if (lastSticker && stickers.length > 1) {
+    availableStickers = stickers.filter((sticker) => sticker !== lastSticker);
+  }
+
+  // Seleciona um sticker aleatório entre os disponíveis
+  const randomIndex = Math.floor(Math.random() * availableStickers.length);
+  const stickerId = availableStickers[randomIndex];
+
+  // Atualiza o último sticker enviado para este tipo
+  lastSentSticker[normalizedType as InteractionType] = stickerId;
 
   console.log(
     `[STICKER] Enviando sticker para ${interactionType}: ${stickerId}`
