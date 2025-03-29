@@ -1,128 +1,51 @@
 # Bragfy - Plano de Desenvolvimento
 
-Um assistente de Brag Document no Telegram com funcionalidade de compartilhamento via link.
+Um assistente de Brag Document no Telegram que ajuda profissionais a registrar e organizar suas realizações.
 
 ## Arquitetura
 
-O projeto Bragfy é dividido em duas partes independentes:
+O projeto Bragfy é um bot do Telegram desenvolvido com:
 
-### 1. Bot do Telegram (este repositório)
+- Node.js + TypeScript
+- Biblioteca `node-telegram-bot-api`
+- Prisma ORM para persistência de dados
+- Interface de usuário conversacional
 
-- Desenvolvimento em Node.js + TypeScript
-- Utiliza a biblioteca `node-telegram-bot-api`
-- Integração com APIs externas via Axios
-- Interface de usuário baseada em comandos e botões inline
-- Modo de simulação para desenvolvimento sem token do Telegram
-- Geração de Brag Documents em formato Markdown
-
-### 2. Webapp Viewer (repositório separado)
-
-- Desenvolvimento em Next.js 14 (App Router)
-- Serviços de API para receber documentos do bot
-- Armazenamento estático de documentos HTML
-- Roteamento dinâmico para acessar documentos via `/u/[hash]`
-
-## Fluxo de Integração
+## Fluxo de Operação
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │             │     │             │     │             │
-│   Usuário   │────▶│  Bot Bragfy │────▶│ API Viewer  │
-│  Telegram   │     │             │     │             │
-│             │     │             │     │             │
+│   Usuário   │────▶│  Bot Bragfy │────▶│  Documento  │
+│  Telegram   │     │             │     │  Markdown   │
+│             │     │             │     │    ou PDF   │
 └─────────────┘     └─────────────┘     └─────────────┘
-       ▲                                       │
-       │                                       │
-       │                                       ▼
-       │                               ┌─────────────┐
-       │                               │             │
-       └───────────────────────────────│  HTML Page  │
-                                       │             │
-                                       └─────────────┘
 ```
 
 ## Status do Projeto
 
 ### ✅ Recursos Implementados
 
-**Bot do Telegram:**
-
-- Comando `/start` para iniciar o bot
-- Comando `/brag` para gerar Brag Document
-- Interface com botões inline
-- Geração de hash para link seguro
-- Envio de documento via POST para a API
-- Modo de simulação para desenvolvimento local
-- Log de eventos e depuração
-- Tratamento de erros robusto
-
-**API e Visualização:**
-
-- Endpoint POST `/api/publish` para receber documentos
-- Armazenamento estático em `/public/generated`
-- Rota dinâmica `/u/[hash]` para acessar documentos
-- Validação de dados de entrada
-- Página 404 customizada para documentos não encontrados
+- Configuração básica do bot do Telegram
+- Estrutura de dados para usuários e atividades
+- Integração com Prisma ORM
+- Sistema de tipos em TypeScript
 
 ### 🚧 Próximos Passos
 
-**Bot do Telegram:**
-
+- Fluxo de onboarding para novos usuários
+- Registro de atividades profissionais
+- Categorização por urgência e impacto
+- Geração de documentos em Markdown
 - Exportação para PDF
-- Autenticação e autorização avançadas
-- Configurações personalizadas por usuário
-- Suporte a edição de documentos existentes
-- Comandos adicionais de utilidade
-
-**API e Visualização:**
-
-- Layout e design responsivo avançado
-- Temas personalizáveis
-- Proteção por senha para documentos
-- Analytics de visualização
-- Pré-renderização para melhor SEO
-- Compatibilidade com dispositivos móveis melhorada
+- Tratamento de erros robusto
 
 ### 🔮 Visão de Longo Prazo
 
-- **Armazenamento Avançado**: Migração para Supabase ou Firebase
-- **Versão Enterprise**: Com recursos para times e organizações
-- **Plataforma Multi-idioma**: Suporte a múltiplos idiomas
-- **Integrações**: Com GitHub, LinkedIn e outras plataformas
-- **API Pública**: Para integração com outros serviços
-
-## Modelo de Comunicação
-
-### Bot → API
-
-O bot envia um POST para o endpoint `/api/publish` com o seguinte formato:
-
-```json
-{
-  "hash": "string", // Hash gerado a partir do ID do usuário
-  "html": "string" // Conteúdo HTML do documento formatado
-}
-```
-
-### API → Usuário
-
-A API responde com:
-
-```json
-{
-  "success": true,
-  "url": "/u/hash123",
-  "message": "Documento publicado com sucesso"
-}
-```
-
-## Vantagens da Arquitetura Atual
-
-1. **Desacoplamento**: Bot e viewer podem ser desenvolvidos e escalados independentemente
-2. **Simplicidade**: Cada componente tem uma responsabilidade clara e bem definida
-3. **Flexibilidade**: Possibilidade de substituir componentes ou adicionar novos sem afetar os existentes
-4. **Deployment**: Cada componente pode ser hospedado em plataformas diferentes (ex: bot em VPS, webapp no Vercel)
-5. **Segurança**: Separação de responsabilidades reduz vetores de ataque
+- **Armazenamento Avançado**: Migração para banco de dados em nuvem
+- **Análise de Dados**: Insights sobre padrões de atividades
+- **Integrações**: Com calendários e ferramentas de produtividade
+- **Recursos Avançados**: Templates personalizados para diferentes setores profissionais
 
 ## 🧠 UX — Experiência do Usuário
 
@@ -131,7 +54,7 @@ A API responde com:
 **Ao abrir o bot:**
 
 - Tentamos recuperar seus dados via API do Telegram
-- Se não for possível, pedimos o comando `/start` para obter informações básicas
+- Apresentamos a funcionalidade do bot para novos usuários
 
 **Se for um novo usuário:**
 
@@ -141,19 +64,19 @@ A API responde com:
 **Se for um usuário existente:**
 
 - Mostramos mensagem de boas-vindas de retorno
-- Reexibimos as instruções de uso para fácil referência
+- Exibimos as instruções de uso para fácil referência
 
 **Ao enviar uma mensagem:**
 
 - Perguntamos se quer editar, cancelar ou confirmar o conteúdo
-- Ao confirmar, solicitamos informações adicionais sobre urgência e impacto em mensagens separadas
+- Ao confirmar, solicitamos informações adicionais sobre urgência e impacto
 - Após preenchimento, salvamos a atividade com timestamp e detalhes
 
 **Para gerar um relatório:**
 
-- O usuário pode usar comandos como `/brag` ou frases como "**gerar brag**"
-- Mostramos três opções de período (hoje, 7 dias, 30 dias) - sem emojis
-- Ao selecionar, geramos um documento Markdown simplificado com nome e atividades
+- O usuário solicita a geração de um documento
+- Mostramos três opções de período (hoje, 7 dias, 30 dias)
+- Ao selecionar, geramos um documento Markdown com nome e atividades
 - Se não houver atividades, apresentamos feedback e sugestão
 
 ## 🛠 DX — Experiência do Desenvolvedor
@@ -198,8 +121,7 @@ A API responde com:
 
 ## 🤖 AX — Experiência do Assistente (BOT)
 
-- Detecta comandos e frases-chave ("gerar brag", "gerar relatório")
-- Interface com botões inline sempre que possível
+- Interface de chat intuitiva
 - Feedback claro para cada ação (sucesso, erro, vazio)
 - Mensagens formatadas com Markdown para melhor legibilidade
 - Timestamps em formato legível (dd/mm/yyyy hh:mm:ss)
