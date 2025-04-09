@@ -19,7 +19,11 @@ import {
   INTERACTION_TYPE_MAP
 } from "../utils/stickerUtils";
 import { Activity } from "../db/client";
-import { isPdfRequest, isBragTextRequest } from "../utils/nluUtils";
+import { isPdfRequest, isBragTextRequest, NluResult } from "../utils/nluUtils";
+import {
+  formatActivitiesForPrompt,
+  analyzeProfileWithLLM
+} from "../utils/llmUtils";
 
 // Armazena temporariamente as atividades pendentes de confirmação completa
 interface PendingActivityData {
@@ -38,6 +42,9 @@ export const pinnedInstructionsStatus = new Map<number, boolean>();
 
 // Mapeia IDs de usuários para status de onboarding em andamento
 export const onboardingInProgress = new Map<number, boolean>();
+
+// Mapeia IDs de usuários para atividades do último documento gerado
+export const lastGeneratedDocumentActivities = new Map<number, Activity[]>();
 
 /**
  * Função para enviar um sticker aleatório para uma determinada interação
@@ -322,22 +329,44 @@ export const handleNewChat = async (
     const isDirectCommand =
       msgLower === "/brag" || msgLower === "/bragfy" || msgLower === "bragfy";
 
-    // Usa NLU para detectar solicitação de PDF
-    const isPdfRequestResult = await isPdfRequest(messageText);
+    // Usa NLU para detectar solicitação de PDF - agora usando a nova interface NluResult
+    const pdfRequestResult = await isPdfRequest(messageText);
 
-    // Usa NLU para detectar solicitação de Brag Document
-    const isBragRequestResult = await isBragTextRequest(messageText);
+    // Usa NLU para detectar solicitação de Brag Document - agora usando a nova interface NluResult
+    const bragRequestResult = await isBragTextRequest(messageText);
 
-    const isBragRequest = isDirectCommand || isBragRequestResult;
+    // Para depuração, exibe logs mais detalhados quando a confiança é alta
+    if (
+      pdfRequestResult.confidence > 0.95 ||
+      bragRequestResult.confidence > 0.95
+    ) {
+      console.log(
+        `[NLU] Detecção com alta confiança para: "${messageText}"\nPDF: ${JSON.stringify(
+          {
+            isMatch: pdfRequestResult.isMatch,
+            confidence: pdfRequestResult.confidence,
+            intent: pdfRequestResult.intent
+          }
+        )}\nBrag: ${JSON.stringify({
+          isMatch: bragRequestResult.isMatch,
+          confidence: bragRequestResult.confidence,
+          intent: bragRequestResult.intent
+        })}`
+      );
+    }
 
-    if (isBragRequest || isPdfRequestResult) {
+    // Usa apenas o campo isMatch que já incorpora a verificação de limite de confiança
+    const isBragRequest = isDirectCommand || bragRequestResult.isMatch;
+    const isPdfRequestMatch = pdfRequestResult.isMatch;
+
+    if (isBragRequest || isPdfRequestMatch) {
       console.log(
         `Usuário ${telegramUser.id} solicitou geração de documento com a mensagem: "${messageText}"`
       );
 
-      if (isPdfRequestResult) {
+      if (isPdfRequestMatch) {
         console.log(
-          `[NLU] Usuário ${telegramUser.id} solicitou PDF diretamente`
+          `[NLU] Usuário ${telegramUser.id} solicitou PDF diretamente (confiança: ${pdfRequestResult.confidence.toFixed(2)})`
         );
 
         // Mostra opções de período para seleção
@@ -359,6 +388,11 @@ export const handleNewChat = async (
 
         return;
       }
+
+      // Para brag text request ou comando direto
+      console.log(
+        `[NLU] Usuário ${telegramUser.id} solicitou Brag Document${bragRequestResult.isMatch ? ` (confiança: ${bragRequestResult.confidence.toFixed(2)})` : " via comando direto"}`
+      );
 
       const options = {
         reply_markup: {
@@ -609,6 +643,39 @@ export const handleCallbackQuery = async (
           bot.answerCallbackQuery(callbackQuery.id, {
             text: "Documento gerado!"
           });
+
+          // Após enviar o documento, pergunte se o usuário deseja uma análise de perfil
+          try {
+            // Armazena as atividades para uso posterior na análise
+            lastGeneratedDocumentActivities.set(telegramUser.id, activities);
+
+            // Após enviar o documento, adiciona a mensagem de solicitação de análise
+            const analysisOptions = {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "✅ Sim", callback_data: `analyze:${period}` },
+                    { text: "⏱️ Agora não", callback_data: "analyze:no" }
+                  ]
+                ]
+              }
+            };
+
+            await bot.sendMessage(
+              chatId,
+              "🎯 Deseja que o agente analise seu perfil de atuação durante esse ciclo?",
+              analysisOptions
+            );
+
+            console.log(
+              `Solicitação de análise de perfil enviada para usuário ${telegramUser.id}`
+            );
+          } catch (error) {
+            console.error(
+              "[ERROR] Erro ao solicitar análise de perfil:",
+              error
+            );
+          }
         } catch (markdownError) {
           console.error("[ERROR] Erro ao renderizar Markdown:", markdownError);
 
@@ -696,6 +763,28 @@ export const handleCallbackQuery = async (
       try {
         // Busca as atividades e gera o PDF
         await generateAndSendPDF(bot, user, period, chatId);
+
+        // Após enviar o PDF, adiciona a mensagem de solicitação de análise
+        const analysisOptions = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "✅ Sim", callback_data: `analyze:${period}` },
+                { text: "⏱️ Agora não", callback_data: "analyze:no" }
+              ]
+            ]
+          }
+        };
+
+        await bot.sendMessage(
+          chatId,
+          "🎯 Deseja que o agente analise seu perfil de atuação durante esse ciclo?",
+          analysisOptions
+        );
+
+        console.log(
+          `Solicitação de análise de perfil enviada para usuário ${telegramUser.id}`
+        );
       } catch (error) {
         console.error("[ERROR] Erro ao gerar/enviar PDF:", error);
         bot.sendMessage(
@@ -1248,6 +1337,96 @@ export const handleCallbackQuery = async (
           text: "Erro ao processar"
         });
       }
+    } else if (data.startsWith("analyze:")) {
+      // Processa solicitação de análise de perfil
+      if (data === "analyze:no") {
+        // Usuário optou por não fazer análise
+        await bot.sendMessage(
+          chatId,
+          "Tudo bem! Se quiser analisar depois, é só pedir."
+        );
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Análise cancelada"
+        });
+
+        return;
+      }
+
+      // Verifica se temos atividades armazenadas para este usuário
+      const activities = lastGeneratedDocumentActivities.get(telegramUser.id);
+
+      if (!activities || activities.length === 0) {
+        console.warn(
+          `Não há atividades armazenadas para análise do usuário ${telegramUser.id}`
+        );
+        await bot.sendMessage(
+          chatId,
+          "Não foi possível recuperar suas atividades para análise. Por favor, gere novamente seu documento."
+        );
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro: atividades não encontradas"
+        });
+
+        return;
+      }
+
+      // Responde ao callback imediatamente
+      bot.answerCallbackQuery(callbackQuery.id, {
+        text: "Iniciando análise de perfil..."
+      });
+
+      // Informa ao usuário que a análise está em andamento
+      const loadingMessage = await bot.sendMessage(
+        chatId,
+        "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
+      );
+
+      try {
+        // Formata as atividades para a chamada da API
+        const activitiesText = formatActivitiesForPrompt(activities);
+
+        // Chama a API para análise
+        const analysisResult = await analyzeProfileWithLLM(activitiesText);
+
+        if (analysisResult.success) {
+          // Enviar a análise para o usuário
+          await bot.sendMessage(chatId, analysisResult.result, {
+            parse_mode: "Markdown"
+          });
+
+          // Envia um sticker de análise
+          await sendStickerSafely(bot, chatId, "analysis");
+
+          console.log(
+            `Análise de perfil enviada com sucesso para usuário ${telegramUser.id}`
+          );
+        } else {
+          // Envia a mensagem de erro retornada pela função
+          await bot.sendMessage(chatId, analysisResult.result);
+
+          console.error(
+            `[ERROR] Falha na análise de perfil para usuário ${telegramUser.id}: ${analysisResult.result}`
+          );
+        }
+
+        // Remove a mensagem de carregamento
+        try {
+          await bot.deleteMessage(chatId, loadingMessage.message_id);
+        } catch (deleteError) {
+          console.warn(
+            `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+          );
+        }
+      } catch (error) {
+        console.error("[ERROR] Erro ao processar análise de perfil:", error);
+
+        await bot.sendMessage(
+          chatId,
+          "Desculpe, não foi possível completar a análise do seu perfil. Por favor, tente novamente mais tarde ou entre em contato com o suporte."
+        );
+      }
     } else {
       console.warn(`Callback desconhecido recebido: ${data}`);
       bot.answerCallbackQuery(callbackQuery.id, { text: "Ação desconhecida" });
@@ -1292,6 +1471,9 @@ async function generateAndSendPDF(
       );
       return;
     }
+
+    // Armazena as atividades para uso posterior na análise
+    lastGeneratedDocumentActivities.set(user.telegramId, activities);
 
     // Gera o PDF
     console.log(`[DEBUG] Gerando PDF para ${activities.length} atividades`);

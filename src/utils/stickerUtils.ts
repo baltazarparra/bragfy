@@ -3,7 +3,8 @@ export type InteractionType =
   | "new_activity"
   | "brag"
   | "welcome_new"
-  | "welcome_back";
+  | "welcome_back"
+  | "analysis";
 
 // Interface para o retorno da função de gerar PDF
 export interface BragDocumentPdfResult {
@@ -20,7 +21,8 @@ export const INTERACTION_TYPE_MAP: Record<string, InteractionType> = {
   brag_document: "brag",
   brag: "brag",
   welcome_new: "onboarding",
-  welcome_back: "onboarding"
+  welcome_back: "onboarding",
+  analysis: "analysis"
 };
 
 // Armazena o último sticker enviado para cada tipo de interação para evitar repetição
@@ -29,7 +31,8 @@ const lastSentSticker: Record<InteractionType, string> = {
   new_activity: "",
   brag: "",
   welcome_new: "",
-  welcome_back: ""
+  welcome_back: "",
+  analysis: ""
 };
 
 const STICKER_MAP: Record<InteractionType, string[]> = {
@@ -73,6 +76,11 @@ const STICKER_MAP: Record<InteractionType, string[]> = {
     "CAACAgIAAxkBAAEN1PNntCwsfN50bB74ZPhvIsdVakn7OgACAQEAAladvQoivp8OuMLmNDYE",
     "CAACAgEAAxkBAAEOLuFn6AWOWnZgfFdjV8mqx7pleuHbuwACIQIAAkWd3QXadBWdq01gFTYE",
     "CAACAgIAAxkBAAEOLuNn6AXdbGjpR0XE-Cowzy1rtcl5bgACfgUAAvoLtghVynd3kd-TuDYE"
+  ],
+  analysis: [
+    "CAACAgIAAxkBAAEOLwln6AdWxbjgTaB1NWS8KISU-0PK2AACfgcAAlOx9wMss8IS7z5EBDYE",
+    "CAACAgEAAxkBAAEOLwNn6AdN37DATUq1P-j6W7vaeiHMNAAC5AIAAttS9wGxEpTjmDP13jYE",
+    "CAACAgIAAxkBAAEOLv9n6Ac9NyrgHB84bulCv-bV3ppI8gACwAEAAzigCgfhO93Ur_AiNgQ"
   ]
 };
 
