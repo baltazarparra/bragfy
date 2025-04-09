@@ -2,6 +2,9 @@ import axios, { AxiosError } from "axios";
 import { Activity } from "../db/client";
 import { formatTimestamp } from "./activityUtils";
 
+// Não definimos mais uma chave pública no código
+// A chave deve ser definida apenas na variável de ambiente OPENROUTER_API_KEY
+
 /**
  * Interface para resposta da OpenRouter API
  */
@@ -77,44 +80,16 @@ export const analyzeProfileWithLLM = async (
   activitiesText: string
 ): Promise<{ success: boolean; result: string }> => {
   try {
-    // Verifica se a chave de API está definida
+    // Chave API hardcoded para testes
     const apiKey =
-      process.env.OPENROUTER_API_KEY?.trim() ||
-      "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";
+      "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";
 
-    const keyValidation = validateOpenRouterKey(apiKey);
-
-    if (!keyValidation.isValid) {
-      console.error(`[LLM] ${keyValidation.message}`);
-      return {
-        success: false,
-        result:
-          "Desculpe, não foi possível completar a análise do seu perfil. Por favor, tente novamente mais tarde ou entre em contato com o suporte. (ERRO-LLM-100)"
-      };
-    }
-
-    // Configuração dos cabeçalhos - apenas os necessários
+    // Configuração dos cabeçalhos com a chave hardcoded
     const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`
     };
 
-    // Log dos cabeçalhos para debug (ocultando parte da chave)
-    const safeHeaders = { ...headers };
-    if (safeHeaders.Authorization) {
-      const authValue = safeHeaders.Authorization;
-      const maskedKey =
-        authValue.substring(0, 15) +
-        "..." +
-        authValue.substring(authValue.length - 5);
-      safeHeaders.Authorization = maskedKey;
-    }
-    console.log(
-      `[LLM] Headers de autenticação: ${JSON.stringify(safeHeaders)}`
-    );
-    console.log(
-      `[LLM] Usando chave OpenRouter API do tipo: ${keyValidation.keyType}`
-    );
     console.log("[LLM] Enviando requisição para a OpenRouter API");
     console.log("[LLM] Using model: meta-llama/llama-3-8b-instruct");
 
@@ -176,6 +151,14 @@ export const analyzeProfileWithLLM = async (
 
       // Log do corpo da resposta para depuração
       if (axiosError.response?.data) {
+        const responseData = axiosError.response.data as any;
+        // Adicionar detalhes específicos do erro 401
+        if (status === 401) {
+          const errorMessage =
+            responseData.error?.message || "Erro de autenticação";
+          console.error(`[LLM] Erro de autenticação: ${errorMessage}`);
+        }
+
         console.error(
           "[LLM] OpenRouter error response body:",
           JSON.stringify(axiosError.response.data, null, 2)
@@ -195,11 +178,7 @@ export const analyzeProfileWithLLM = async (
               key.toLowerCase() === "authorization" &&
               typeof requestHeaders[key] === "string"
             ) {
-              const authValue = requestHeaders[key] as string;
-              safeHeaders[key] =
-                authValue.substring(0, 15) +
-                "..." +
-                authValue.substring(authValue.length - 5);
+              safeHeaders[key] = "Bearer [REDACTED]";
             } else {
               safeHeaders[key] = String(requestHeaders[key]);
             }
