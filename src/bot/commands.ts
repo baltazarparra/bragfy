@@ -24,6 +24,7 @@ import {
   formatActivitiesForPrompt,
   analyzeProfileWithLLM
 } from "../utils/llmUtils";
+import { sendSafeMarkdown } from "../utils/telegramUtils";
 
 // Armazena temporariamente as atividades pendentes de confirmação completa
 interface PendingActivityData {
@@ -37,7 +38,7 @@ interface PendingActivityData {
 // Mapeia IDs de mensagem para atividades pendentes
 export const pendingActivities = new Map<number, PendingActivityData>();
 
-// Mapeia IDs de usuários para status de fixação de mensagem de instruções
+// Mapeia IDs de usuários para status de fixação de mensagens de instruções
 export const pinnedInstructionsStatus = new Map<number, boolean>();
 
 // Mapeia IDs de usuários para status de onboarding em andamento
@@ -113,6 +114,12 @@ export const handleStartCommand = async (
     const exists = await userExists(telegramUser.id);
 
     if (exists) {
+      // Envia mensagem de carregamento
+      const loadingMessage = await bot.sendMessage(
+        chatId,
+        "⏳ Carregando seus dados..."
+      );
+
       // Usuário já cadastrado - mantém a mensagem padrão de reentrada
       // Envia um sticker de onboarding
       await sendStickerSafely(bot, chatId, "onboarding");
@@ -121,6 +128,15 @@ export const handleStartCommand = async (
         chatId,
         `Olá novamente, ${telegramUser.first_name}! Você já está cadastrado no Bragfy.`
       );
+
+      // Remove a mensagem de carregamento
+      try {
+        await bot.deleteMessage(chatId, loadingMessage.message_id);
+      } catch (deleteError) {
+        console.warn(
+          `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+        );
+      }
 
       // Envia e fixa a mensagem de instruções para relembrar o usuário
       await sendAndPinInstructions(bot, chatId, telegramUser.id);
@@ -132,10 +148,25 @@ export const handleStartCommand = async (
       );
     } else {
       try {
+        // Envia mensagem de carregamento
+        const loadingMessage = await bot.sendMessage(
+          chatId,
+          "⏳ Registrando seu usuário..."
+        );
+
         // Novo usuário, vamos cadastrar
         console.log(`Criando novo usuário com ID ${telegramUser.id}`);
         await createUser(telegramUser);
         console.log(`Usuário ${telegramUser.id} criado com sucesso`);
+
+        // Remove a mensagem de carregamento
+        try {
+          await bot.deleteMessage(chatId, loadingMessage.message_id);
+        } catch (deleteError) {
+          console.warn(
+            `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+          );
+        }
 
         // Nome do usuário com fallback para "usuário" se não disponível
         const userName = telegramUser.first_name || "usuário";
@@ -312,14 +343,31 @@ export const handleNewChat = async (
 
     if (!user) {
       console.warn(
-        `Usuário ${telegramUser.id} existe segundo userExists() mas não foi encontrado por getUserByTelegramId()`
+        `Inconsistência: userExists retornou true mas getUserByTelegramId retornou null para usuário ${telegramUser.id}`
       );
-
       bot.sendMessage(
         chatId,
-        `Erro: Usuário não encontrado. Por favor, use o comando /start para reiniciar a conversa.`
+        `Erro: Não foi possível recuperar seus dados. Por favor, use o comando /start para reiniciar a conversa.`
       );
       return;
+    }
+
+    // Verifica se é a primeira atividade do dia
+    let loadingMessage = null;
+    try {
+      const todayActivities = await getActivitiesByPeriod(user.id, 1);
+
+      // Se não tiver atividades hoje, mostra mensagem de carregamento específica
+      if (todayActivities.length === 0) {
+        console.log(`Primeira atividade do dia para usuário ${user.id}`);
+        loadingMessage = await bot.sendMessage(
+          chatId,
+          "⏳ Registrando sua primeira atividade do dia..."
+        );
+      }
+    } catch (activityError) {
+      console.warn(`Erro ao verificar atividades do dia: ${activityError}`);
+      // Continua o fluxo mesmo se houver erro na verificação
     }
 
     // Verificação usando NLU para pedidos de PDF
@@ -417,7 +465,7 @@ export const handleNewChat = async (
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "✅ Confirmar", callback_data: `confirm:${messageText}` },
+            { text: "✅ Ok", callback_data: `confirm:${messageText}` },
             { text: "✏️ Editar", callback_data: "edit" },
             { text: "❌ Cancelar", callback_data: "cancel" }
           ]
@@ -427,11 +475,26 @@ export const handleNewChat = async (
 
     console.log(`Usuário ${telegramUser.id} enviou mensagem: "${messageText}"`);
 
-    bot.sendMessage(
+    // Envia a mensagem de confirmação
+    await bot.sendMessage(
       chatId,
       `Recebi sua atividade:\n\n"${messageText}"\n\nDeseja confirmar, editar ou cancelar?`,
       options
     );
+
+    // Remove a mensagem de carregamento se existir
+    if (loadingMessage) {
+      try {
+        await bot.deleteMessage(chatId, loadingMessage.message_id);
+        console.log(
+          `Mensagem de carregamento removida para usuário ${user.id}`
+        );
+      } catch (deleteError) {
+        console.warn(
+          `Erro ao remover mensagem de carregamento: ${deleteError}`
+        );
+      }
+    }
   } catch (error) {
     console.error("Erro ao processar nova mensagem:", error);
 
@@ -449,6 +512,46 @@ export const handleNewChat = async (
     }
   }
 };
+
+/**
+ * Cria uma animação de três pontos para indicar atividade de processamento
+ * @param bot - Instância do bot do Telegram
+ * @param chatId - ID do chat
+ * @param messageId - ID da mensagem a ser editada
+ * @param baseText - Texto base da mensagem
+ * @param iterations - Número de iterações da animação (padrão: 3)
+ * @returns Promise que é resolvida quando a animação termina
+ */
+export async function createLoadingAnimation(
+  bot: TelegramBot,
+  chatId: number,
+  messageId: number,
+  baseText: string,
+  iterations: number = 3
+): Promise<void> {
+  const dots = [".", "..", "..."];
+  const delay = 700; // ms entre atualizações
+
+  for (let i = 0; i < iterations; i++) {
+    for (const dot of dots) {
+      try {
+        await bot.editMessageText(`${baseText}${dot}`, {
+          chat_id: chatId,
+          message_id: messageId
+        });
+        await new Promise((resolve) => {
+          // Use .unref() para evitar que o timer bloqueie o encerramento do processo
+          setTimeout(resolve, delay).unref();
+        });
+      } catch (error) {
+        console.warn(
+          `[ANIMATION] Erro ao atualizar animação de carregamento: ${error}`
+        );
+        // Continua mesmo com erro
+      }
+    }
+  }
+}
 
 /**
  * Handler para callbacks de botões inline
@@ -517,16 +620,27 @@ export const handleCallbackQuery = async (
       }
 
       try {
-        // Informa ao usuário que o documento está sendo gerado
+        // Informa ao usuário editando a mensagem original como indicador de carregamento
         console.log(
-          `[DEBUG] Enviando mensagem "Gerando..." para usuário ${telegramUser.id}`
+          `[DEBUG] Editando mensagem ${messageId} para "Gerando..." para usuário ${telegramUser.id}`
         );
+
+        // Edita a mensagem original para mostrar o carregamento
+        const loadingMsgId = messageId; // Armazena o ID da mensagem de carregamento
         await bot.editMessageText(
           `⏳ Gerando seu Brag Document para os últimos ${period} dia(s)...`,
           {
             chat_id: chatId,
-            message_id: messageId
+            message_id: loadingMsgId
           }
+        );
+
+        // Inicia animação de carregamento na mensagem de carregamento
+        createLoadingAnimation(
+          bot,
+          chatId,
+          loadingMsgId,
+          `⏳ Gerando seu Brag Document para os últimos ${period} dia(s)`
         );
 
         // Busca as atividades no período
@@ -543,17 +657,37 @@ export const handleCallbackQuery = async (
           console.log(
             `[DEBUG] Nenhuma atividade encontrada para usuário ${telegramUser.id}`
           );
-          await bot.editMessageText(
-            `Hmm, não encontrei nenhuma atividade registrada nos últimos ${period} dia(s).\n\nQue tal registrar algumas conquistas agora?`,
-            {
-              chat_id: chatId,
-              message_id: messageId
-            }
+
+          // Remove a mensagem de carregamento
+          try {
+            await bot.deleteMessage(chatId, loadingMsgId);
+            console.log(
+              `[DEBUG] Mensagem de carregamento removida para usuário ${telegramUser.id}`
+            );
+          } catch (deleteError) {
+            console.warn(
+              `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+            );
+            // Se não puder deletar, tenta editar para informar que não há atividades
+            await bot.editMessageText(
+              `Hmm, não encontrei nenhuma atividade registrada nos últimos ${period} dia(s).\n\nQue tal registrar algumas conquistas agora?`,
+              {
+                chat_id: chatId,
+                message_id: loadingMsgId
+              }
+            );
+          }
+
+          // Envia nova mensagem informando que não há atividades
+          await bot.sendMessage(
+            chatId,
+            `Hmm, não encontrei nenhuma atividade registrada nos últimos ${period} dia(s).\n\nQue tal registrar algumas conquistas agora?`
           );
+
           bot.answerCallbackQuery(callbackQuery.id, {
             text: "Nenhuma atividade encontrada"
           });
-          return;
+          return; // Finaliza aqui se não houver atividades
         }
 
         // Constrói o documento no estilo Apple: minimalista, elegante e organizado
@@ -609,8 +743,21 @@ export const handleCallbackQuery = async (
         bragDocument += `\n_Documento gerado em ${formatTimestamp(new Date())}_`;
 
         console.log(
-          `[DEBUG] Documento gerado com sucesso para usuário ${telegramUser.id}, enviando resposta`
+          `[DEBUG] Documento gerado com sucesso para usuário ${telegramUser.id}, enviando como nova mensagem`
         );
+
+        // Remove a mensagem de carregamento
+        try {
+          await bot.deleteMessage(chatId, loadingMsgId);
+          console.log(
+            `[DEBUG] Mensagem de carregamento removida para usuário ${telegramUser.id}`
+          );
+        } catch (deleteError) {
+          console.warn(
+            `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+          );
+          // Continua mesmo se não puder deletar
+        }
 
         // Log simplificado do documento para debug (apenas primeiros caracteres)
         const docPreview = bragDocument.substring(0, 100) + "...";
@@ -626,13 +773,15 @@ export const handleCallbackQuery = async (
             }
           };
 
-          // Envia o documento formatado com botão de PDF
-          await bot.editMessageText(bragDocument, {
-            chat_id: chatId,
-            message_id: messageId,
+          // ENVIA COMO NOVA MENSAGEM (não edita a mensagem de carregamento)
+          const sentDocument = await bot.sendMessage(chatId, bragDocument, {
             parse_mode: "Markdown",
             reply_markup: inlineKeyboard.reply_markup
           });
+
+          console.log(
+            `[DEBUG] Brag Document enviado como nova mensagem ID: ${sentDocument.message_id}`
+          );
 
           // Envia um sticker para brag document
           await sendStickerSafely(bot, chatId, "brag");
@@ -679,14 +828,11 @@ export const handleCallbackQuery = async (
         } catch (markdownError) {
           console.error("[ERROR] Erro ao renderizar Markdown:", markdownError);
 
-          // Tenta novamente sem formatação Markdown
-          await bot.editMessageText(
+          // Tenta novamente sem formatação Markdown, enviando como nova mensagem
+          await bot.sendMessage(
+            chatId,
             "Seu Brag Document foi gerado, mas ocorreu um erro de formatação. Mostrando versão simplificada...\n\n" +
-              bragDocument.replace(/[*_|]/g, ""),
-            {
-              chat_id: chatId,
-              message_id: messageId
-            }
+              bragDocument.replace(/[*_|]/g, "")
           );
 
           bot.answerCallbackQuery(callbackQuery.id, {
@@ -695,21 +841,24 @@ export const handleCallbackQuery = async (
         }
       } catch (error) {
         console.error("[ERROR] Erro ao gerar Brag Document:", error);
+
+        // Remove a mensagem de carregamento em caso de erro, se ela existir
         try {
-          await bot.editMessageText(
-            "Desculpe, ocorreu um erro ao gerar seu Brag Document. Por favor, tente novamente mais tarde.",
-            {
-              chat_id: chatId,
-              message_id: messageId
-            }
+          await bot.deleteMessage(chatId, messageId);
+        } catch (deleteError) {
+          console.warn(
+            `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+          );
+        }
+
+        // Envia mensagem de erro como nova mensagem
+        try {
+          await bot.sendMessage(
+            chatId,
+            "Desculpe, ocorreu um erro ao gerar seu Brag Document. Por favor, tente novamente mais tarde."
           );
         } catch (sendError) {
           console.error("[ERROR] Erro ao enviar mensagem de erro:", sendError);
-          // Tenta com mensagem mais simples
-          await bot.sendMessage(
-            chatId,
-            "Erro ao gerar Brag Document. Por favor, tente novamente."
-          );
         }
 
         bot.answerCallbackQuery(callbackQuery.id, {
@@ -757,8 +906,21 @@ export const handleCallbackQuery = async (
         show_alert: false
       });
 
-      // Envia mensagem solicitando o PDF
-      await bot.sendMessage(chatId, `🧾 Gerando PDF do seu Brag Document...`);
+      // Envia mensagem solicitando o PDF com animação
+      const loadingMsg = await bot.sendMessage(
+        chatId,
+        `🧾 Gerando PDF do seu Brag Document...`
+      );
+
+      // Inicia animação de carregamento
+      if (loadingMsg.message_id) {
+        createLoadingAnimation(
+          bot,
+          chatId,
+          loadingMsg.message_id,
+          "🧾 Gerando PDF do seu Brag Document"
+        );
+      }
 
       try {
         // Busca as atividades e gera o PDF
@@ -790,6 +952,15 @@ export const handleCallbackQuery = async (
         bot.sendMessage(
           chatId,
           "Ocorreu um erro ao gerar seu PDF. Por favor, tente novamente mais tarde."
+        );
+      }
+
+      // Remove a mensagem de carregamento após a conclusão
+      try {
+        await bot.deleteMessage(chatId, loadingMsg.message_id);
+      } catch (deleteError) {
+        console.warn(
+          `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
         );
       }
     } else if (data.startsWith("confirm:")) {
@@ -828,6 +999,24 @@ export const handleCallbackQuery = async (
         return;
       }
 
+      // Verifica se é a primeira atividade do dia e mostra loader apenas se for
+      let activityLoadingMessage = null;
+      try {
+        const todayActivities = await getActivitiesByPeriod(user.id, 1);
+
+        // Se não tiver atividades hoje, mostra mensagem de carregamento específica
+        if (todayActivities.length === 0) {
+          console.log(`Primeira atividade do dia para usuário ${user.id}`);
+          activityLoadingMessage = await bot.sendMessage(
+            chatId,
+            "⏳ Registrando sua primeira atividade do dia..."
+          );
+        }
+      } catch (activityError) {
+        console.warn(`Erro ao verificar atividades do dia: ${activityError}`);
+        // Continua o fluxo mesmo se houver erro na verificação
+      }
+
       try {
         // Inicia o fluxo perguntando sobre a urgência
         // Armazena a atividade pendente no mapa
@@ -858,6 +1047,17 @@ export const handleCallbackQuery = async (
           `Qual é a urgência desta atividade?\n\n"${content}"`,
           urgencyOptions
         );
+
+        // Remove a mensagem de carregamento se existir
+        if (activityLoadingMessage) {
+          try {
+            await bot.deleteMessage(chatId, activityLoadingMessage.message_id);
+          } catch (deleteError) {
+            console.warn(
+              `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+            );
+          }
+        }
 
         // Responde ao callback original
         console.log(
@@ -991,7 +1191,7 @@ export const handleCallbackQuery = async (
             inline_keyboard: [
               [
                 {
-                  text: "✅ Confirmar",
+                  text: "✅ Ok",
                   callback_data: `save_activity:${pendingMessageId}`
                 },
                 {
@@ -1301,7 +1501,7 @@ export const handleCallbackQuery = async (
             inline_keyboard: [
               [
                 {
-                  text: "✅ Confirmar",
+                  text: "✅ Ok",
                   callback_data: `save_activity:${pendingMessageId}`
                 },
                 {
@@ -1383,6 +1583,16 @@ export const handleCallbackQuery = async (
         "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
       );
 
+      // Inicia animação de carregamento
+      if (loadingMessage.message_id) {
+        createLoadingAnimation(
+          bot,
+          chatId,
+          loadingMessage.message_id,
+          "⏳ Analisando seu perfil profissional"
+        );
+      }
+
       try {
         // Formata as atividades para a chamada da API
         const activitiesText = formatActivitiesForPrompt(activities);
@@ -1391,10 +1601,8 @@ export const handleCallbackQuery = async (
         const analysisResult = await analyzeProfileWithLLM(activitiesText);
 
         if (analysisResult.success) {
-          // Enviar a análise para o usuário
-          await bot.sendMessage(chatId, analysisResult.result, {
-            parse_mode: "Markdown"
-          });
+          // Usa a função de sanitização para enviar a análise
+          await sendSafeMarkdown(bot, chatId, analysisResult.result);
 
           // Envia um sticker de análise
           await sendStickerSafely(bot, chatId, "analysis");

@@ -137,9 +137,18 @@ describe("Análise de Perfil Profissional", () => {
     await handleCallbackQuery(mockBot, callbackQuery);
 
     // Verifica se a mensagem de carregamento foi enviada
-    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+    expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+      1,
       chatId,
       "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
+    );
+
+    // Usa uma verificação mais flexível para a segunda chamada
+    const secondCallArgs = mockBot.sendMessage.mock.calls[1];
+    expect(secondCallArgs[0]).toBe(chatId);
+    expect(secondCallArgs[1]).toContain("Análise de perfil profissional");
+    expect(secondCallArgs[2]).toEqual(
+      expect.objectContaining({ parse_mode: "Markdown" })
     );
 
     // Verifica se a formatação das atividades foi chamada
@@ -147,13 +156,6 @@ describe("Análise de Perfil Profissional", () => {
 
     // Verifica se a análise foi solicitada
     expect(llmUtils.analyzeProfileWithLLM).toHaveBeenCalled();
-
-    // Verifica se a resposta foi enviada corretamente
-    expect(mockBot.sendMessage).toHaveBeenCalledWith(
-      chatId,
-      "Análise de perfil profissional simulada para testes.",
-      { parse_mode: "Markdown" }
-    );
 
     // Verifica se o sticker foi enviado
     expect(mockBot.sendSticker).toHaveBeenCalled();

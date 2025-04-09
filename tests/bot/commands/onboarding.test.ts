@@ -69,18 +69,23 @@ describe("Testes de Onboarding", () => {
       "onboarding"
     );
 
-    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+    expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+      1,
       123456789,
-      expect.stringContaining(
-        "Olá novamente, João! Você já está cadastrado no Bragfy."
-      )
+      "⏳ Carregando seus dados..."
     );
-    // Verifica que as instruções também são enviadas
+
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       2,
       123456789,
+      "Olá novamente, João! Você já está cadastrado no Bragfy."
+    );
+
+    expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+      3,
+      123456789,
       expect.stringContaining("*COMO USAR*:"),
-      expect.any(Object)
+      expect.objectContaining({ parse_mode: "Markdown" })
     );
   });
 
@@ -116,17 +121,23 @@ describe("Testes de Onboarding", () => {
       "onboarding"
     );
 
-    expect(mockBot.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mockBot.sendMessage).toHaveBeenCalledTimes(3);
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       1,
       123456789,
-      `Olá *João*, boas vindas ao *Bragfy*,  
-seu agente pessoal para gestão de Brag Documents`,
-      expect.objectContaining({ parse_mode: "Markdown" })
+      "⏳ Registrando seu usuário..."
     );
-    // Segunda mensagem com instruções
+
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       2,
+      123456789,
+      expect.stringContaining("Olá *João*, boas vindas ao *Bragfy*"),
+      expect.objectContaining({ parse_mode: "Markdown" })
+    );
+
+    // Segunda mensagem com instruções
+    expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+      3,
       123456789,
       expect.stringContaining("*COMO USAR*:"),
       expect.any(Object)
@@ -147,8 +158,14 @@ seu agente pessoal para gestão de Brag Documents`,
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       1,
       123456789,
+      "⏳ Registrando seu usuário..."
+    );
+
+    expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+      2,
+      123456789,
       expect.stringContaining("Olá *João*, boas vindas ao *Bragfy*"),
-      expect.any(Object)
+      expect.objectContaining({ parse_mode: "Markdown" })
     );
   });
 
@@ -186,6 +203,12 @@ seu agente pessoal para gestão de Brag Documents`,
     // Assert
     expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
       1,
+      123456789,
+      "⏳ Registrando seu usuário..."
+    );
+
+    expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+      2,
       123456789,
       `Olá *João*, boas vindas ao *Bragfy*,  
 seu agente pessoal para gestão de Brag Documents`,

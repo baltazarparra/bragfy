@@ -78,8 +78,11 @@ export const analyzeProfileWithLLM = async (
 ): Promise<{ success: boolean; result: string }> => {
   try {
     // Verifica se a chave de API está definida
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    const keyValidation = validateOpenRouterKey(apiKey || "");
+    const apiKey =
+      process.env.OPENROUTER_API_KEY?.trim() ||
+      "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";
+
+    const keyValidation = validateOpenRouterKey(apiKey);
 
     if (!keyValidation.isValid) {
       console.error(`[LLM] ${keyValidation.message}`);
@@ -90,17 +93,30 @@ export const analyzeProfileWithLLM = async (
       };
     }
 
+    // Configuração dos cabeçalhos - apenas os necessários
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    };
+
+    // Log dos cabeçalhos para debug (ocultando parte da chave)
+    const safeHeaders = { ...headers };
+    if (safeHeaders.Authorization) {
+      const authValue = safeHeaders.Authorization;
+      const maskedKey =
+        authValue.substring(0, 15) +
+        "..." +
+        authValue.substring(authValue.length - 5);
+      safeHeaders.Authorization = maskedKey;
+    }
+    console.log(
+      `[LLM] Headers de autenticação: ${JSON.stringify(safeHeaders)}`
+    );
     console.log(
       `[LLM] Usando chave OpenRouter API do tipo: ${keyValidation.keyType}`
     );
     console.log("[LLM] Enviando requisição para a OpenRouter API");
     console.log("[LLM] Using model: meta-llama/llama-3-8b-instruct");
-
-    // Configuração dos cabeçalhos
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
-    };
 
     // Configuração da requisição
     const response = await axios.post<OpenRouterResponse>(
@@ -111,7 +127,7 @@ export const analyzeProfileWithLLM = async (
           {
             role: "system",
             content:
-              "Você é um gestor de tecnologia e produto com vasta experiência. Com base na lista de atividades a seguir, faça uma análise do perfil profissional da pessoa que realizou essas ações. Identifique padrões de comportamento, estilo de trabalho, possíveis pontos de atenção e sugestões de desenvolvimento. Seja objetivo e profissional."
+              "You are a seasoned technology executive. Based on the activity log below, analyze the user's professional behavior. Write directly to the user using the second person (\"you\"). Keep your analysis short, direct, and laced with subtle dry sarcasm — never mocking, never playful. Highlight behavioral patterns, management attitude, potential blind spots, and concrete suggestions for improvement. \n\nAlso, evaluate the nature of the current cycle based on urgency and impact levels reported for each activity. Did the user exaggerate importance? Is everything marked high? Were there low-urgency low-impact tasks only? Draw conclusions about their current pace, mindset, and assertiveness based on these values.\n\nYou're not here to comfort; you're here to give a performance readout. Be blunt. Be right."
           },
           {
             role: "user",
@@ -170,12 +186,33 @@ export const analyzeProfileWithLLM = async (
       try {
         if (axiosError.config && axiosError.config.data) {
           const requestData = JSON.parse(axiosError.config.data as string);
+          // Log mais detalhado dos headers
+          const requestHeaders = axiosError.config.headers || {};
+          // Criar uma versão segura dos headers para log (sem mostrar o token completo)
+          const safeHeaders: Record<string, string> = {};
+          for (const key in requestHeaders) {
+            if (
+              key.toLowerCase() === "authorization" &&
+              typeof requestHeaders[key] === "string"
+            ) {
+              const authValue = requestHeaders[key] as string;
+              safeHeaders[key] =
+                authValue.substring(0, 15) +
+                "..." +
+                authValue.substring(authValue.length - 5);
+            } else {
+              safeHeaders[key] = String(requestHeaders[key]);
+            }
+          }
+
           console.error(
-            "[LLM] Request payload:",
+            "[LLM] Request details:",
             JSON.stringify(
               {
                 model: requestData.model,
-                url: axiosError.config.url
+                url: axiosError.config.url,
+                headers: safeHeaders,
+                method: axiosError.config.method
               },
               null,
               2
@@ -183,44 +220,29 @@ export const analyzeProfileWithLLM = async (
           );
         }
       } catch (parseError) {
-        console.error("[LLM] Não foi possível analisar os dados da requisição");
+        console.error(
+          "[LLM] Não foi possível analisar os dados da requisição:",
+          parseError
+        );
       }
 
-      // Logar headers relacionados à autenticação sem expor tokens
-      if (axiosError.response?.headers) {
-        const headers = axiosError.response.headers;
-        const clerkAuthStatus = headers["x-clerk-auth-status"];
-        const clerkAuthReason = headers["x-clerk-auth-reason"];
-        const clerkAuthMessage = headers["x-clerk-auth-message"];
-
-        if (clerkAuthStatus || clerkAuthReason || clerkAuthMessage) {
-          console.error(
-            `[LLM] x-clerk-auth-status: ${clerkAuthStatus || "N/A"}`
-          );
-          console.error(
-            `[LLM] x-clerk-auth-reason: ${clerkAuthReason || "N/A"}`
-          );
-          console.error(
-            `[LLM] x-clerk-auth-message: ${clerkAuthMessage || "N/A"}`
-          );
-        }
+      // Código de erro baseado no status da resposta
+      let errorCode = "ERRO-LLM-999";
+      if (axiosError.response && axiosError.response.status) {
+        errorCode = `ERRO-LLM-${axiosError.response.status}`;
       }
+
+      return {
+        success: false,
+        result: `Desculpe, não foi possível completar a análise do seu perfil. Por favor, tente novamente mais tarde ou entre em contato com o suporte. (${errorCode})`
+      };
     } else {
       console.error("[LLM] Erro ao chamar OpenRouter API:", error);
     }
 
-    // Código de erro baseado no status da resposta
-    let errorCode = "ERRO-LLM-999";
-    if (isAxiosError) {
-      const axiosError = error as any;
-      if (axiosError.response && axiosError.response.status) {
-        errorCode = `ERRO-LLM-${axiosError.response.status}`;
-      }
-    }
-
     return {
       success: false,
-      result: `Desculpe, não foi possível completar a análise do seu perfil. Por favor, tente novamente mais tarde ou entre em contato com o suporte. (${errorCode})`
+      result: `Desculpe, não foi possível completar a análise do seu perfil. Por favor, tente novamente mais tarde ou entre em contato com o suporte. (ERRO-LLM-999)`
     };
   }
 };

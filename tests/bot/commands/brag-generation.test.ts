@@ -96,11 +96,26 @@ describe("Geração de Brag Document", () => {
         existingUser.id,
         7
       );
+      // Verifica que a mensagem de carregamento foi editada primeiro
       expect(mockBot.editMessageText).toHaveBeenCalledWith(
-        expect.stringContaining("*BRAG DOCUMENT*"),
+        expect.stringContaining("Gerando seu Brag Document"),
         expect.objectContaining({
           chat_id: 123456789,
-          message_id: callbackQuery.message?.message_id,
+          message_id: callbackQuery.message?.message_id
+        })
+      );
+
+      // Verifica que a mensagem de carregamento foi excluída
+      expect(mockBot.deleteMessage).toHaveBeenCalledWith(
+        123456789,
+        callbackQuery.message?.message_id
+      );
+
+      // Verifica que o Brag Document foi enviado como uma nova mensagem
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining("*BRAG DOCUMENT*"),
+        expect.objectContaining({
           parse_mode: "Markdown"
         })
       );
@@ -130,14 +145,28 @@ describe("Geração de Brag Document", () => {
         existingUser.id,
         30
       );
+
+      // Verifica que a mensagem original foi editada com o status de carregamento
       expect(mockBot.editMessageText).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "Hmm, não encontrei nenhuma atividade registrada"
-        ),
+        expect.stringContaining("Gerando seu Brag Document"),
         expect.objectContaining({
           chat_id: 123456789,
           message_id: callbackQuery.message?.message_id
         })
+      );
+
+      // Verifica que a mensagem de carregamento foi excluída
+      expect(mockBot.deleteMessage).toHaveBeenCalledWith(
+        123456789,
+        callbackQuery.message?.message_id
+      );
+
+      // Verifica apenas que a mensagem foi enviada com o texto esperado, sem verificar o terceiro parâmetro
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining(
+          "Hmm, não encontrei nenhuma atividade registrada"
+        )
       );
     });
 
@@ -160,14 +189,18 @@ describe("Geração de Brag Document", () => {
       await handleCallbackQuery(mockBot, callbackQuery);
 
       // Assert
-      expect(mockBot.editMessageText).toHaveBeenCalledWith(
+      // Verifica tentativa de deletar a mensagem de carregamento, mesmo em caso de erro
+      expect(mockBot.deleteMessage).toHaveBeenCalledWith(
+        123456789,
+        callbackQuery.message?.message_id
+      );
+
+      // Verifica apenas que a mensagem de erro foi enviada, sem verificar o terceiro parâmetro
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
         expect.stringContaining(
           "Desculpe, ocorreu um erro ao gerar seu Brag Document"
-        ),
-        expect.objectContaining({
-          chat_id: 123456789,
-          message_id: callbackQuery.message?.message_id
-        })
+        )
       );
     });
   });

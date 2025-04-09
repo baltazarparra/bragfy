@@ -125,7 +125,7 @@ describe("Filtragem de Mensagens", () => {
       // Assert
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         123456789,
-        "Erro: Usuário não encontrado. Por favor, use o comando /start para reiniciar a conversa."
+        "Erro: Não foi possível recuperar seus dados. Por favor, use o comando /start para reiniciar a conversa."
       );
     });
   });
