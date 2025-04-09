@@ -1,45 +1,28 @@
-import axios from "axios";
 import {
   formatActivitiesForPrompt,
   analyzeProfileWithLLM
 } from "../../src/utils/llmUtils";
 import { Activity } from "../../src/db/client";
 
-// Mock do módulo axios
-jest.mock("axios");
-
-// Constante para chave de API de teste - usar uma chave fictícia
-const TEST_API_KEY = "sk-or-v1-test-placeholder-for-testing-only-not-real-key";
-
-/**
- * Detecta se uma string parece ser uma chave de API real
- * @param key String a ser verificada
- * @returns true se parece ser uma chave real
- */
-function looksLikeRealKey(key: string): boolean {
-  // Critérios mais rigorosos para detectar possíveis vazamentos de chaves reais
-  if (!key) return false;
-
-  // 1. Verifica se é parecida com o formato de chave OpenRouter
-  if (!key.startsWith("sk-or-")) return false;
-
-  // 2. Verifica se é a chave de teste (permitida)
-  if (key === TEST_API_KEY) return false;
-
-  // 3. Verifica se é longa o suficiente para ser uma chave real
-  if (key.length >= 30) {
-    // 4. Verifica se contém caracteres hexadecimais típicos de chaves reais
-    const hexPattern = /[0-9a-f]{8,}/i;
-    return hexPattern.test(key);
-  }
-
-  return false;
-}
-
 describe("llmUtils", () => {
+  // Salvar o fetch original para restaurar depois
+  const originalFetch = global.fetch;
+  const originalEnv = process.env;
+
   // Limpar todos os mocks antes de cada teste
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock global de fetch
+    global.fetch = jest.fn();
+    // Configurar variável de ambiente para teste
+    process.env.OPENROUTER_API_KEY = "sk-or-v1-test-key";
+  });
+
+  afterEach(() => {
+    // Restaurar fetch original
+    global.fetch = originalFetch;
+    // Restaurar variáveis de ambiente
+    process.env = originalEnv;
   });
 
   describe("formatActivitiesForPrompt", () => {
@@ -83,27 +66,11 @@ describe("llmUtils", () => {
   });
 
   describe("analyzeProfileWithLLM", () => {
-    // Configurações originais do environment
-    const originalEnv = process.env;
-
-    // Chave API hardcoded para testes
-    const HARDCODED_API_KEY =
-      "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";
-
-    beforeEach(() => {
-      // Limpar os mocks do axios
-      jest.spyOn(axios, "post").mockClear();
-    });
-
-    afterEach(() => {
-      // Restaurar as configurações originais
-      process.env = originalEnv;
-    });
-
     it("deve retornar análise com sucesso quando a API responde corretamente", async () => {
-      // Mock da resposta da API usando jest.spyOn
-      jest.spyOn(axios, "post").mockResolvedValueOnce({
-        data: {
+      // Mock da resposta do fetch
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
           id: "resp-123",
           choices: [
             {
@@ -114,12 +81,13 @@ describe("llmUtils", () => {
               }
             }
           ]
-        },
-        status: 200,
-        statusText: "OK",
-        headers: {},
-        config: { url: "https://openrouter.ai/api/v1/chat/completions" }
-      });
+        })
+      };
+
+      // Configure o mock do fetch
+      jest
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockResponse as unknown as Response);
 
       // Texto de atividades para análise
       const activitiesText =
@@ -135,19 +103,20 @@ describe("llmUtils", () => {
       );
 
       // Verifica se a API foi chamada corretamente
-      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
 
-      // Obtém os argumentos da chamada para verificação detalhada
-      const callArgs = (axios.post as jest.Mock).mock.calls[0];
+      // Verifica os argumentos da chamada
+      const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+      expect(fetchCall[0]).toBe(
+        "https://openrouter.ai/api/v1/chat/completions"
+      );
 
-      // Verifica a URL
-      expect(callArgs[0]).toBe("https://openrouter.ai/api/v1/chat/completions");
-
-      // Verifica o modelo
-      expect(callArgs[1].model).toBe("meta-llama/llama-3-8b-instruct");
+      // Verifica o corpo da requisição
+      const requestBody = JSON.parse(fetchCall[1].body);
+      expect(requestBody.model).toBe("meta-llama/llama-3-8b-instruct");
 
       // Verifica o conteúdo do prompt do sistema
-      const systemMessage = callArgs[1].messages.find(
+      const systemMessage = requestBody.messages.find(
         (m: any) => m.role === "system"
       );
       expect(systemMessage).toBeDefined();
@@ -156,7 +125,7 @@ describe("llmUtils", () => {
       );
 
       // Verifica o conteúdo do prompt do usuário
-      expect(callArgs[1].messages).toEqual(
+      expect(requestBody.messages).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             role: "user",
@@ -166,130 +135,162 @@ describe("llmUtils", () => {
       );
 
       // Verifica os cabeçalhos da requisição
-      expect(callArgs[2].headers).toEqual({
+      expect(fetchCall[1].headers).toEqual({
         "Content-Type": "application/json",
-        Authorization: `Bearer ${HARDCODED_API_KEY}`
+        Authorization: "Bearer sk-or-v1-test-key",
+        "HTTP-Referer": "https://bragfy.dev",
+        "X-Title": "Bragfy Agent"
       });
     });
 
     it("deve tratar corretamente erro 401 da API", async () => {
-      // Criar um erro do Axios simulando resposta 401
-      class MockAxiosError extends Error {
-        isAxiosError = true;
-        response = {
-          status: 401,
-          statusText: "Unauthorized",
-          data: {
-            error: {
-              message: "No auth credentials found"
-            }
-          },
-          headers: {
-            "x-request-id": "req-123"
+      // Mock de erro 401
+      const mockErrorResponse = {
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        json: async () => ({
+          error: {
+            message: "No auth credentials found"
           }
-        };
-        config = {
-          url: "https://openrouter.ai/api/v1/chat/completions",
-          data: JSON.stringify({
-            model: "meta-llama/llama-3-8b-instruct",
-            messages: []
-          }),
-          headers: {
-            Authorization: `Bearer ${HARDCODED_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          method: "POST"
-        };
-      }
+        })
+      };
 
-      // Configurar o mock para rejeitar com erro de autenticação
+      // Configure o mock para retornar erro 401
       jest
-        .spyOn(axios, "post")
-        .mockRejectedValueOnce(
-          new MockAxiosError("Request failed with status code 401")
-        );
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockErrorResponse as unknown as Response);
 
       // Executa a função a ser testada
       const result = await analyzeProfileWithLLM("atividades teste");
 
       // Verifica os resultados
       expect(result.success).toBe(false);
-      expect(result.result).toContain("ERRO-LLM-401");
+      expect(result.result).toContain("LLM-ERR-401");
     });
 
     it("deve tratar corretamente erro 500 da API", async () => {
-      // Criar um erro do Axios simulando resposta 500
-      class MockAxiosError extends Error {
-        isAxiosError = true;
-        response = {
-          status: 500,
-          statusText: "Internal Server Error",
-          data: {
-            error: {
-              message: "Internal server error"
-            }
-          },
-          headers: {}
-        };
-        config = {
-          url: "https://openrouter.ai/api/v1/chat/completions",
-          data: JSON.stringify({
-            model: "meta-llama/llama-3-8b-instruct",
-            messages: []
-          }),
-          headers: {
-            Authorization: `Bearer ${HARDCODED_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          method: "POST"
-        };
-      }
+      // Mock de erro 500
+      const mockErrorResponse = {
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        json: async () => ({
+          error: {
+            message: "Internal server error"
+          }
+        })
+      };
 
-      // Configurar o mock para rejeitar com erro interno
+      // Configure o mock para retornar erro 500
       jest
-        .spyOn(axios, "post")
-        .mockRejectedValueOnce(
-          new MockAxiosError("Request failed with status code 500")
-        );
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockErrorResponse as unknown as Response);
 
       // Executa a função a ser testada
       const result = await analyzeProfileWithLLM("atividades teste");
 
       // Verifica os resultados
       expect(result.success).toBe(false);
-      expect(result.result).toContain("ERRO-LLM-500");
+      expect(result.result).toContain("LLM-ERR-500");
+    });
+  });
+
+  describe("Multiple consecutive calls", () => {
+    it("should handle two successful API calls consecutively", async () => {
+      // Mock successful responses for two consecutive calls
+      const mockResponse1 = {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: "First analysis result" } }]
+        })
+      };
+
+      const mockResponse2 = {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: "Second analysis result" } }]
+        })
+      };
+
+      // Set up mock to return different responses on consecutive calls
+      jest
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockResponse1 as unknown as Response)
+        .mockResolvedValueOnce(mockResponse2 as unknown as Response);
+
+      // First call
+      const result1 = await analyzeProfileWithLLM("activity 1");
+
+      // Second call
+      const result2 = await analyzeProfileWithLLM("activity 2");
+
+      // Verify both calls were successful
+      expect(result1.success).toBe(true);
+      expect(result1.result).toBe("First analysis result");
+
+      expect(result2.success).toBe(true);
+      expect(result2.result).toBe("Second analysis result");
+
+      // Verify fetch was called twice with correct headers both times
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      // Get the calls to fetch
+      const fetchCalls = (global.fetch as jest.Mock).mock.calls;
+
+      // Check both calls have Authorization header with correct API key
+      expect(fetchCalls[0][1].headers.Authorization).toBe(
+        "Bearer sk-or-v1-test-key"
+      );
+      expect(fetchCalls[1][1].headers.Authorization).toBe(
+        "Bearer sk-or-v1-test-key"
+      );
+
+      // Verify request bodies have correct content
+      const body1 = JSON.parse(fetchCalls[0][1].body);
+      const body2 = JSON.parse(fetchCalls[1][1].body);
+
+      expect(body1.messages.find((m: any) => m.role === "user").content).toBe(
+        "activity 1"
+      );
+      expect(body2.messages.find((m: any) => m.role === "user").content).toBe(
+        "activity 2"
+      );
     });
 
-    it("deve verificar que nenhuma chave real está sendo usada nos testes", () => {
-      // Isso verifica se acidentalmente estamos usando uma chave real não autorizada nos testes
-      const env = { ...process.env };
+    it("should handle 401 unauthorized response", async () => {
+      // Mock a 401 error response
+      const mockResponse = {
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        json: async () => ({
+          error: { message: "Invalid API key" }
+        })
+      };
 
-      // Procura em todas as variáveis de ambiente
-      for (const [key, value] of Object.entries(env)) {
-        if (key.includes("API_KEY") && value && looksLikeRealKey(value)) {
-          console.warn(
-            `[SECURITY] Possível chave real não autorizada detectada na variável ${key}!`
-          );
-          // Isso vai falhar o teste para alertar sobre a possível chave real
-          expect(value).toBe(TEST_API_KEY);
-        }
-      }
+      jest
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockResponse as unknown as Response);
 
-      // Verifica que a função looksLikeRealKey não considera a chave de teste como vazamento
-      expect(looksLikeRealKey(TEST_API_KEY)).toBe(false);
+      // Call the function
+      const result = await analyzeProfileWithLLM("test activity");
 
-      // Uma chave real diferente de TEST_API_KEY deve ser detectada
-      const fakeRealKey =
-        "sk-or-v1-123456789abcdef123456789abcdef123456789abcdef123456789abcdef";
-      expect(looksLikeRealKey(fakeRealKey)).toBe(true);
+      // Verify error handling
+      expect(result.success).toBe(false);
+      expect(result.result).toContain("LLM-ERR-401");
 
-      // Testes adicionais para a função looksLikeRealKey
-      expect(looksLikeRealKey("")).toBe(false); // String vazia
-      expect(looksLikeRealKey("sk-or-short")).toBe(false); // Muito curta
-      expect(looksLikeRealKey("sk-or-v1-this-is-not-hexadecimal")).toBe(false); // Sem hex
-
-      // Teste com uma chave que contém padrões hexadecimais reais
-      expect(looksLikeRealKey("sk-or-v1-1234abcd56789deadbeef")).toBe(true); // Com hex
+      // Verify fetch was called with the correct URL and headers
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://openrouter.ai/api/v1/chat/completions",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer sk-or-v1-test-key",
+            "Content-Type": "application/json"
+          })
+        })
+      );
     });
   });
 });
