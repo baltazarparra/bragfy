@@ -36,9 +36,15 @@ export const initBot = (token: string): TelegramBot => {
   });
 
   // Registra handler para todas as mensagens
-  bot.on("message", (msg) => {
+  bot.on("message", async (msg) => {
     // Ignora comandos
     if (msg.text && msg.text.startsWith("/")) return;
+
+    // Simula digitação antes de enviar a mensagem
+    await bot.sendChatAction(msg.chat.id, "typing");
+
+    // Envia mensagem de loader imediatamente após a indicação de digitação
+    await bot.sendMessage(msg.chat.id, "Ainda estou acordando...");
 
     // Processa nova mensagem
     handleNewChat(bot, msg);

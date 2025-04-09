@@ -29,22 +29,19 @@ describe("Fluxo de Atividades", () => {
       );
 
       // Mock retornando lista vazia (nenhuma atividade ainda hoje)
-      (mocks.getActivitiesByPeriod as jest.Mock).mockResolvedValue([]);
+      (mocks.getActivitiesByPeriod as any).mockResolvedValue([]);
 
       // Act
       await handleNewChat(mockBot, msg);
 
       // Assert
-      // Verifica a primeira chamada para sendMessage (carregamento)
+      // Verifica a primeira chamada para sendMessage (carregamento específico da primeira atividade)
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         existingUser.telegramId,
         "⏳ Registrando sua primeira atividade do dia..."
       );
-      expect(mockBot.sendMessage.mock.calls[0][1]).toBe(
-        "⏳ Registrando sua primeira atividade do dia..."
-      );
 
-      // Verifica a segunda chamada para sendMessage (confirmação da atividade)
+      // Verifica a última chamada para sendMessage (confirmação da atividade)
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         existingUser.telegramId,
         expect.stringContaining("Recebi sua atividade"),
@@ -56,7 +53,7 @@ describe("Fluxo de Atividades", () => {
       );
     });
 
-    it("não deve enviar mensagem de carregamento para atividades subsequentes do dia", async () => {
+    it("não deve enviar mensagem de carregamento da primeira atividade para atividades subsequentes do dia", async () => {
       // Arrange
       const msg = createMessage(
         existingUser.telegramId,
@@ -66,16 +63,16 @@ describe("Fluxo de Atividades", () => {
 
       // Mock retornando uma atividade existente (já tem atividade hoje)
       const existingActivity = mockActivity(existingUser.id);
-      (mocks.getActivitiesByPeriod as jest.Mock).mockResolvedValue([
+      (mocks.getActivitiesByPeriod as any).mockResolvedValue([
         existingActivity
       ]);
 
       // Act
       await handleNewChat(mockBot, msg);
 
-      // Assert - Verifica que não houve chamada com mensagem de carregamento
+      // Assert - Verifica que não houve chamada com mensagem de carregamento da primeira atividade
       const loadingCalls = mockBot.sendMessage.mock.calls.filter(
-        (call) => call[1] === "⏳ Carregando..."
+        (call) => call[1] === "⏳ Registrando sua primeira atividade do dia..."
       );
       expect(loadingCalls.length).toBe(0);
 
