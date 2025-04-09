@@ -5,12 +5,29 @@ import {
   handleCallbackQuery
 } from "./commands";
 
-// Inicializa o bot
+// Inicializa o agente
 export const initBot = (token: string): TelegramBot => {
-  // Cria uma instância do bot com polling habilitado
+  // Verifica se o token está vazio (modo de simulação)
+  if (!token) {
+    console.log("🤖 Bot iniciado em modo de simulação!");
+    console.log("⚠️ Nenhum comando será processado automaticamente.");
+    console.log("ℹ️ Use o console para simular comandos.");
+
+    // Retorna um objeto com os métodos mínimos necessários
+    return {
+      onText: () => {},
+      on: () => {},
+      sendMessage: (chatId: number, text: string) => {
+        console.log(`[Simulação] Mensagem enviada para ${chatId}: ${text}`);
+        return Promise.resolve({} as any);
+      }
+    } as any;
+  }
+
+  // Cria uma instância do agente com polling habilitado
   const bot = new TelegramBot(token, { polling: true });
 
-  console.log("Bot iniciado!");
+  console.log("Agente iniciado!");
 
   // Registra handler para o comando /start com parâmetro opcional
   bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {

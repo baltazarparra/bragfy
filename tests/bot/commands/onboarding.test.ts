@@ -121,7 +121,7 @@ describe("Testes de Onboarding", () => {
       1,
       123456789,
       `Olá *João*, boas vindas ao *Bragfy*,  
-seu assistente pessoal para gestão de Brag Documents`,
+seu agente pessoal para gestão de Brag Documents`,
       expect.objectContaining({ parse_mode: "Markdown" })
     );
     // Segunda mensagem com instruções
@@ -188,7 +188,7 @@ seu assistente pessoal para gestão de Brag Documents`,
       1,
       123456789,
       `Olá *João*, boas vindas ao *Bragfy*,  
-seu assistente pessoal para gestão de Brag Documents`,
+seu agente pessoal para gestão de Brag Documents`,
       expect.objectContaining({ parse_mode: "Markdown" })
     );
   });

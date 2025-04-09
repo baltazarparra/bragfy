@@ -1,10 +1,10 @@
 # Bragfy 🚀
 
-Um bot do Telegram que ajuda profissionais a registrar suas realizações diárias e gerar um "Brag Document" em formato Markdown ou PDF.
+Um agente do Telegram que ajuda profissionais a registrarem suas atividades diárias e gerarem um "Brag Document" em formato Markdown ou PDF.
 
 ## O que é um Brag Document?
 
-Um Brag Document (ou "Documento de Conquistas") é uma prática recomendada para acompanhar suas realizações profissionais ao longo do tempo. Ele facilita:
+Um Brag Document (ou "Documento de Conquistas") é uma prática recomendada para acompanhar suas atividades profissionais ao longo do tempo. Ele facilita:
 
 - Avaliações de desempenho
 - Solicitações de promoção
@@ -13,7 +13,7 @@ Um Brag Document (ou "Documento de Conquistas") é uma prática recomendada para
 
 ## Arquitetura
 
-O Bragfy é um bot do Telegram que:
+O Bragfy é um agente do Telegram que:
 
 - Oferece interface amigável via Telegram
 - Permite registrar atividades profissionais
@@ -80,7 +80,7 @@ npm start
 
 ## Fluxo do Usuário
 
-1. O usuário interage com o bot via Telegram
+1. O usuário interage com o agente via Telegram
 2. Registra suas atividades profissionais
 3. Fornece informações sobre urgência e impacto
 4. Solicita a geração de um Brag Document

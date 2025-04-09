@@ -4,7 +4,7 @@ Um assistente de Brag Document no Telegram que ajuda profissionais a registrar e
 
 ## Arquitetura
 
-O projeto Bragfy é um bot do Telegram desenvolvido com:
+O projeto Bragfy é um agente do Telegram desenvolvido com:
 
 - Node.js + TypeScript
 - Biblioteca `node-telegram-bot-api`
@@ -16,7 +16,7 @@ O projeto Bragfy é um bot do Telegram desenvolvido com:
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │             │     │             │     │             │
-│   Usuário   │────▶│  Bot Bragfy │────▶│  Documento  │
+│   Usuário   │────▶│ Agente Bragfy│────▶│  Documento  │
 │  Telegram   │     │             │     │  Markdown   │
 │             │     │             │     │    ou PDF   │
 └─────────────┘     └─────────────┘     └─────────────┘
@@ -26,7 +26,7 @@ O projeto Bragfy é um bot do Telegram desenvolvido com:
 
 ### ✅ Recursos Implementados
 
-- Configuração básica do bot do Telegram
+- Configuração básica do agente do Telegram
 - Estrutura de dados para usuários e atividades
 - Integração com Prisma ORM
 - Sistema de tipos em TypeScript
@@ -51,15 +51,15 @@ O projeto Bragfy é um bot do Telegram desenvolvido com:
 
 ### Jornada do Usuário
 
-**Ao abrir o bot:**
+**Ao abrir o agente:**
 
 - Tentamos recuperar seus dados via API do Telegram
-- Apresentamos a funcionalidade do bot para novos usuários
+- Apresentamos a funcionalidade do agente para novos usuários
 
 **Se for um novo usuário:**
 
 - Salvamos seus dados no banco (nome, username, ID)
-- Apresentamos o bot e suas funcionalidades
+- Apresentamos o agente e suas funcionalidades
 
 **Se for um usuário existente:**
 
@@ -85,7 +85,7 @@ O projeto Bragfy é um bot do Telegram desenvolvido com:
 
 - **Linguagem**: TypeScript
 - **Runtime**: Node.js
-- **Bot**: API Telegram Bot
+- **Agente**: API Telegram
 - **ORM**: Prisma
 - **Banco de Dados**: SQLite (dev) / PostgreSQL (prod)
 - **Testes**: Jest + ts-jest
@@ -99,7 +99,7 @@ O projeto Bragfy é um bot do Telegram desenvolvido com:
 /src
 ├── bot/
 │   ├── commands.ts     # Handlers de comandos
-│   └── index.ts        # Configuração do bot
+│   └── index.ts        # Configuração do agente
 ├── db/
 │   └── client.ts       # Cliente Prisma
 ├── utils/
@@ -119,7 +119,7 @@ O projeto Bragfy é um bot do Telegram desenvolvido com:
 - **Linting**: ESLint para qualidade de código
 - **Testes**: Unitários para funções e mock para handlers
 
-## 🤖 AX — Experiência do Assistente (BOT)
+## 🤖 AX — Experiência do Agente
 
 - Interface de chat intuitiva
 - Feedback claro para cada ação (sucesso, erro, vazio)
@@ -138,13 +138,13 @@ O projeto Bragfy é um bot do Telegram desenvolvido com:
 
 - **Módulo Dedicado**: Implementação através do arquivo `src/utils/stickerUtils.ts`
 - **Tipos de Interação**: Suporte para 3 contextos principais:
-  - `onboarding`: Enviados quando um usuário inicia o bot (novo ou retornante)
+  - `onboarding`: Enviados quando um usuário inicia o agente (novo ou retornante)
   - `new_activity`: Enviados quando uma atividade é registrada com sucesso
   - `brag`: Enviados quando um Brag Document é gerado (Markdown ou PDF)
 - **Seleção Aleatória**: Para cada interação, um sticker é escolhido aleatoriamente de um conjunto predefinido
 - **Testes**: Cobertura completa através de testes unitários:
   - `tests/utils/stickerUtils.test.ts`: Verifica a funcionalidade base
-  - `tests/bot/commands/stickers.test.ts`: Testa a integração com o bot
+  - `tests/bot/commands/stickers.test.ts`: Testa a integração com o agente
 
 ### Extensibilidade
 
@@ -152,5 +152,5 @@ Para adicionar ou modificar stickers:
 
 1. Localize o objeto `stickers` no arquivo `src/utils/stickerUtils.ts`
 2. Adicione novos IDs de stickers ao array correspondente ao tipo de interação
-3. Para obter IDs de novos stickers, envie-os para o bot [@getidsbot](https://t.me/getidsbot) no Telegram
+3. Para obter IDs de novos stickers, envie-os para o agente [@getidsbot](https://t.me/getidsbot) no Telegram
 4. Execute os testes para garantir que tudo funciona corretamente

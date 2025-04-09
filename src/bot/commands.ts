@@ -19,6 +19,7 @@ import {
   INTERACTION_TYPE_MAP
 } from "../utils/stickerUtils";
 import { Activity } from "../db/client";
+import { isPdfRequest, isBragTextRequest } from "../utils/nluUtils";
 
 // Armazena temporariamente as atividades pendentes de confirmação completa
 interface PendingActivityData {
@@ -40,7 +41,7 @@ export const onboardingInProgress = new Map<number, boolean>();
 
 /**
  * Função para enviar um sticker aleatório para uma determinada interação
- * @param bot - Instância do bot do Telegram
+ * @param bot - Instância do agente do Telegram
  * @param chatId - ID do chat para enviar o sticker
  * @param interaction - Nome da interação (onboarding, new_activity, brag_document)
  */
@@ -134,7 +135,7 @@ export const handleStartCommand = async (
 
         // Nova mensagem de boas-vindas seguindo o template solicitado
         const welcomeMessage = `Olá *${userName}*, boas vindas ao *Bragfy*,  
-seu assistente pessoal para gestão de Brag Documents`;
+seu agente pessoal para gestão de Brag Documents`;
 
         // Envia um sticker de onboarding
         await sendStickerSafely(bot, chatId, "onboarding");
@@ -242,7 +243,7 @@ async function sendAndPinInstructions(
 }
 
 /**
- * Handler para novas mensagens de chat
+ * Handler para novas mensagens recebidas
  */
 export const handleNewChat = async (
   bot: TelegramBot,
@@ -253,9 +254,11 @@ export const handleNewChat = async (
     const telegramUser = msg.from;
     const messageText = msg.text || "";
 
-    // Ignora mensagens enviadas pelo próprio bot
+    // Ignora mensagens enviadas pelo próprio agente
     if (msg.from?.is_bot) {
-      console.log(`Ignorando mensagem do próprio bot no chat ${msg.chat.id}`);
+      console.log(
+        `Ignorando mensagem do próprio agente no chat ${msg.chat.id}`
+      );
       return;
     }
 
@@ -312,31 +315,30 @@ export const handleNewChat = async (
       return;
     }
 
-    // Verificar se é uma solicitação de brag document
+    // Verificação usando NLU para pedidos de PDF
     const msgLower = messageText.toLowerCase().trim();
-    const isBragRequest =
-      msgLower === "/brag" ||
-      msgLower === "/bragfy" ||
-      msgLower === "bragfy" ||
-      msgLower.includes("bragfy") ||
-      msgLower.includes("gerar brag") ||
-      msgLower.includes("gerar documento") ||
-      msgLower.includes("gerar pdf") ||
-      msgLower.includes("gerar relatorio") ||
-      msgLower.includes("gerar relatório");
 
-    if (isBragRequest) {
+    // Mantém compatibilidade com comandos diretos como "/brag"
+    const isDirectCommand =
+      msgLower === "/brag" || msgLower === "/bragfy" || msgLower === "bragfy";
+
+    // Usa NLU para detectar solicitação de PDF
+    const isPdfRequestResult = await isPdfRequest(messageText);
+
+    // Usa NLU para detectar solicitação de Brag Document
+    const isBragRequestResult = await isBragTextRequest(messageText);
+
+    const isBragRequest = isDirectCommand || isBragRequestResult;
+
+    if (isBragRequest || isPdfRequestResult) {
       console.log(
-        `Usuário ${telegramUser.id} solicitou geração de Brag Document com a mensagem: "${messageText}"`
+        `Usuário ${telegramUser.id} solicitou geração de documento com a mensagem: "${messageText}"`
       );
 
-      // Verificamos se é especificamente uma solicitação de PDF
-      const isPdfRequest =
-        msgLower === "gerar pdf" || msgLower.includes("gerar pdf");
-
-      // Se for solicitação direta de PDF, verificamos qual período
-      if (isPdfRequest) {
-        console.log(`Usuário ${telegramUser.id} solicitou PDF diretamente`);
+      if (isPdfRequestResult) {
+        console.log(
+          `[NLU] Usuário ${telegramUser.id} solicitou PDF diretamente`
+        );
 
         // Mostra opções de período para seleção
         const options = {
