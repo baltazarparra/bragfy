@@ -31,8 +31,7 @@ import {
   handleNewChat,
   pendingActivities,
   pinnedInstructionsStatus,
-  onboardingInProgress,
-  _testHelpers
+  onboardingInProgress
 } from "../../src/bot/commands";
 import {
   userExists,
@@ -205,10 +204,12 @@ describe("Bot Telegram - Comandos", () => {
       });
 
       // Mock manual para simular o comportamento do handler
-      bot.sendMessage.mockImplementationOnce((chatId, text, options) => {
-        // Simula o comportamento esperado
-        return Promise.resolve({});
-      });
+      bot.sendMessage.mockImplementationOnce(
+        (chatId: number, text: string, options?: any) => {
+          // Simula o comportamento esperado
+          return Promise.resolve({});
+        }
+      );
 
       // Verifica que temos o comportamento esperado nos botões
       expect(pendingActivities.has(pendingMessageId)).toBe(true);
@@ -256,9 +257,11 @@ describe("Bot Telegram - Comandos", () => {
       });
 
       // Configura o mock para simular o comportamento do handler
-      bot.sendMessage.mockImplementationOnce((chatId, text, options) => {
-        return Promise.resolve({});
-      });
+      bot.sendMessage.mockImplementationOnce(
+        (chatId: number, text: string, options?: any) => {
+          return Promise.resolve({});
+        }
+      );
 
       // Verificação simples
       expect(pendingActivities.has(pendingMessageId)).toBe(true);
@@ -300,9 +303,11 @@ describe("Bot Telegram - Comandos", () => {
       });
 
       // Configura mock para simular comportamento esperado
-      bot.sendMessage.mockImplementation((chatId, text, options) => {
-        return Promise.resolve({});
-      });
+      bot.sendMessage.mockImplementation(
+        (chatId: number, text: string, options?: any) => {
+          return Promise.resolve({});
+        }
+      );
 
       // Verifica estado inicial da atividade
       const pendingActivity = pendingActivities.get(pendingMessageId);

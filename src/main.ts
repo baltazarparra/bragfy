@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { initBot } from "./bot";
+import { initBot, getBotStatus } from "./bot";
 import express from "express";
 
 // Carrega variáveis de ambiente
@@ -33,17 +33,34 @@ const keepAlive = () => {
 const setupHealthServer = () => {
   const app = express();
 
-  // Rota de health check simples
+  // Rota de health check aprimorada com informações do bot
   app.get("/health", (req, res) => {
-    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+    const botStatus = getBotStatus();
+
+    const healthData = {
+      status: botStatus.status === "online" ? "ok" : "initializing",
+      timestamp: new Date().toISOString(),
+      bot: {
+        ...botStatus,
+        memory: {
+          heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+          heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+          external: Math.round(process.memoryUsage().external / 1024 / 1024),
+          rss: Math.round(process.memoryUsage().rss / 1024 / 1024)
+        }
+      },
+      env: process.env.NODE_ENV || "development"
+    };
+
+    res.status(200).json(healthData);
   });
 
   // Rota raiz
   app.get("/", (req, res) => {
-    res.status(200).json({ 
-      name: "Bragfy Agent", 
-      status: "running", 
-      env: process.env.NODE_ENV || "development" 
+    res.status(200).json({
+      name: "Bragfy Agent",
+      status: "running",
+      env: process.env.NODE_ENV || "development"
     });
   });
 
@@ -119,6 +136,10 @@ const main = async () => {
           console.log("✅ Aplicação rodando em modo de simulação");
           console.log("✅ Versão: 1.0.0");
           console.log("✅ Banco de dados: simulado");
+
+          // Exibe status detalhado do bot
+          const status = getBotStatus();
+          console.log("✅ Estado do bot:", status);
         } else if (input.toLowerCase().includes("gerar pdf")) {
           console.log("\n🤖 Simulando pedido de geração de PDF...");
           console.log("✅ Intenção 'generate_pdf' detectada (score: 0.95)");
@@ -153,6 +174,9 @@ const main = async () => {
     } else {
       // Ambiente de desenvolvimento normal com token
       console.log("🏠 Rodando em ambiente de desenvolvimento local");
+
+      // Configurar o servidor HTTP mesmo em desenvolvimento para testes
+      setupHealthServer();
     }
 
     console.log("✅ Bragfy está rodando! Pressione CTRL+C para encerrar.");

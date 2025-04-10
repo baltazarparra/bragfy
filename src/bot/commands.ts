@@ -1,4 +1,5 @@
 import TelegramBot from "node-telegram-bot-api";
+import { resetBotState } from ".";
 import {
   userExists,
   createUser,
@@ -25,6 +26,7 @@ import {
   analyzeProfileWithLLM
 } from "../utils/llmUtils";
 import { sendSafeMarkdown } from "../utils/telegramUtils";
+import { handleUserError, ERROR_MESSAGES } from "../utils/errorUtils";
 
 // Armazena temporariamente as atividades pendentes de confirmação completa
 interface PendingActivityData {
@@ -36,7 +38,7 @@ interface PendingActivityData {
 }
 
 // Mapeia IDs de mensagens que devem parar animação (para coordenar exclusão e animação)
-const messagesToStopAnimation = new Set<string>();
+export const messagesToStopAnimation = new Set<string>();
 
 // Mapeia IDs de mensagem para atividades pendentes
 export const pendingActivities = new Map<number, PendingActivityData>();
@@ -503,10 +505,13 @@ export const handleNewChat = async (
 
     // Garante que o usuário sempre receba feedback, mesmo em caso de erro
     try {
-      bot.sendMessage(
-        msg.chat.id,
-        "Ops! Ocorreu um erro ao processar sua mensagem. Por favor, tente novamente ou use o comando /start para reiniciar a conversa."
-      );
+      // Usar handleUserError para garantir um ID de rastreamento para depuração
+      await handleUserError(bot, msg.chat.id, error, "message_processing", {
+        userId: msg.from?.id,
+        messageId: msg.message_id,
+        messageText: msg.text,
+        baseMessage: ERROR_MESSAGES.MESSAGE_PROCESSING
+      });
     } catch (sendError) {
       console.error(
         "Erro ao enviar mensagem de erro para o usuário:",
@@ -1542,76 +1547,6 @@ export const handleCallbackQuery = async (
       pendingActivities.set(pendingMessageId, pendingActivity);
 
       try {
-        // Opções de urgência
-        const urgencyOptions = {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: "Alta",
-                  callback_data: `urgency_edited:high:${pendingMessageId}`
-                },
-                {
-                  text: "Média",
-                  callback_data: `urgency_edited:medium:${pendingMessageId}`
-                },
-                {
-                  text: "Baixa",
-                  callback_data: `urgency_edited:low:${pendingMessageId}`
-                }
-              ]
-            ]
-          }
-        };
-
-        // Envia mensagem perguntando sobre a urgência após edição do impacto
-        await bot.sendMessage(
-          chatId,
-          `Qual é a urgência desta atividade?\n\n"${pendingActivity.content}"\n\nImpacto: ${formatImpactLabel(impactValue)}`,
-          urgencyOptions
-        );
-
-        console.log(
-          `Pedindo urgência após edição para atividade "${pendingActivity.content}" com impacto "${impactValue}" do usuário ${pendingActivity.userId}`
-        );
-
-        bot.answerCallbackQuery(callbackQuery.id, {
-          text: "Impacto atualizado. Agora selecione a urgência."
-        });
-      } catch (error) {
-        console.error("Erro ao processar seleção de impacto editado:", error);
-        bot.sendMessage(
-          chatId,
-          "Erro ao processar sua seleção. Por favor, tente novamente."
-        );
-        bot.answerCallbackQuery(callbackQuery.id, {
-          text: "Erro ao processar"
-        });
-      }
-    } else if (data.startsWith("urgency_edited:")) {
-      // Processa urgência após edição e mostra confirmação
-      // Formato do callback: urgency_edited:VALOR:MESSAGE_ID
-      const [, urgencyValue, pendingMessageIdStr] = data.split(":");
-      const pendingMessageId = parseInt(pendingMessageIdStr, 10);
-
-      if (isNaN(pendingMessageId) || !pendingActivities.has(pendingMessageId)) {
-        console.warn(
-          `Atividade pendente não encontrada para urgência editada: ${pendingMessageId}`
-        );
-        bot.answerCallbackQuery(callbackQuery.id, {
-          text: "Erro: atividade não encontrada"
-        });
-        return;
-      }
-
-      // Recupera a atividade pendente
-      const pendingActivity = pendingActivities.get(pendingMessageId)!;
-
-      // Atualiza a urgência
-      pendingActivity.urgency = urgencyValue;
-      pendingActivities.set(pendingMessageId, pendingActivity);
-
-      try {
         // Nova etapa: mostrar confirmação de urgência e impacto antes de salvar
         const confirmOptions = {
           reply_markup: {
@@ -1638,14 +1573,14 @@ export const handleCallbackQuery = async (
         );
 
         console.log(
-          `Solicitando confirmação após edição para atividade "${pendingActivity.content}" (ID msg: ${pendingMessageId})`
+          `Solicitando confirmação para atividade "${pendingActivity.content}" (ID msg: ${pendingMessageId})`
         );
 
         bot.answerCallbackQuery(callbackQuery.id, {
           text: "Confira os detalhes e confirme"
         });
       } catch (error) {
-        console.error("Erro ao processar seleção de urgência editada:", error);
+        console.error("Erro ao processar seleção de impacto:", error);
         bot.sendMessage(
           chatId,
           "Erro ao processar sua seleção. Por favor, tente novamente."
@@ -1655,10 +1590,12 @@ export const handleCallbackQuery = async (
         });
       }
     } else if (data.startsWith("analyze:")) {
-      // Processa solicitação de análise de perfil
+      // Processar solicitação de análise de perfil profissional
+      // Formato: analyze:7 (período) ou analyze:no (recusa)
+
       if (data === "analyze:no") {
-        // Usuário optou por não fazer análise
-        await bot.sendMessage(
+        // Usuário recusou a análise de perfil
+        bot.sendMessage(
           chatId,
           "Tudo bem! Se quiser analisar depois, é só pedir."
         );
@@ -1666,18 +1603,30 @@ export const handleCallbackQuery = async (
         bot.answerCallbackQuery(callbackQuery.id, {
           text: "Análise cancelada"
         });
-
         return;
       }
 
-      // Verifica se temos atividades armazenadas para este usuário
+      // Extrai o período solicitado para análise
+      const period = parseInt(data.substring(8), 10);
+
+      if (isNaN(period) || ![1, 7, 30].includes(period)) {
+        console.warn(
+          `Período inválido recebido para análise: ${data.substring(8)}`
+        );
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Período inválido"
+        });
+        return;
+      }
+
+      // Busca as atividades armazenadas durante a última geração de documento
       const activities = lastGeneratedDocumentActivities.get(telegramUser.id);
 
       if (!activities || activities.length === 0) {
         console.warn(
-          `Não há atividades armazenadas para análise do usuário ${telegramUser.id}`
+          `Nenhuma atividade armazenada para análise de perfil do usuário ${telegramUser.id}`
         );
-        await bot.sendMessage(
+        bot.sendMessage(
           chatId,
           "Não foi possível recuperar suas atividades para análise. Por favor, gere novamente seu documento."
         );
@@ -1685,118 +1634,85 @@ export const handleCallbackQuery = async (
         bot.answerCallbackQuery(callbackQuery.id, {
           text: "Erro: atividades não encontradas"
         });
-
         return;
       }
 
-      // Responde ao callback imediatamente
-      bot.answerCallbackQuery(callbackQuery.id, {
-        text: "Iniciando análise de perfil..."
-      });
+      // Envia mensagem de carregamento
+      const loadingMsg = await bot.sendMessage(
+        chatId,
+        "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
+      );
 
       try {
-        // Informa ao usuário que a análise está em andamento
-        let loadingMessageId: number | null = null;
-        try {
-          const loadingMessage = await bot.sendMessage(
-            chatId,
-            "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
-          );
-
-          loadingMessageId = loadingMessage.message_id;
-
-          // Inicia animação de carregamento apenas se a mensagem foi enviada com sucesso
-          if (loadingMessageId) {
-            // Executa a animação em um contexto protegido que não afetará o fluxo principal
-            createLoadingAnimation(
-              bot,
-              chatId,
-              loadingMessageId,
-              "⏳ Analisando seu perfil profissional"
-            ).catch((animError) => {
-              console.warn(
-                `[ANIMATION] Erro na animação de análise: ${animError}`
-              );
-              // Não propaga o erro para não interromper o fluxo principal
-            });
-          }
-        } catch (msgError) {
-          console.warn(
-            `[ANALYZE] Erro ao enviar mensagem de carregamento: ${msgError}`
-          );
-          // Continua mesmo sem mensagem de carregamento
-        }
-
-        // Formata as atividades para a chamada da API
+        // Formata as atividades para o prompt
         const activitiesText = formatActivitiesForPrompt(activities);
 
-        // Chama a API para análise
-        const analysisResult = await analyzeProfileWithLLM(activitiesText);
+        // Solicita análise ao LLM
+        const analysis = await analyzeProfileWithLLM(activitiesText);
 
-        // Tenta remover a mensagem de carregamento de forma segura
-        if (loadingMessageId) {
-          try {
-            // Sinaliza para a animação que vamos remover esta mensagem
-            const messageKey = `${chatId}:${loadingMessageId}`;
-            messagesToStopAnimation.add(messageKey);
-
-            // Pequena pausa para ter certeza que a animação verá o sinal
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            await bot.deleteMessage(chatId, loadingMessageId);
-          } catch (deleteError) {
-            // Apenas loga o erro, não interrompe o fluxo
-            console.warn(
-              `[WARN] Não foi possível remover mensagem de carregamento da análise: ${deleteError}`
-            );
-          }
-        }
-
-        if (analysisResult.success) {
-          // Usa a função de sanitização para enviar a análise
-          await sendSafeMarkdown(bot, chatId, analysisResult.result);
-
-          // Envia um sticker de análise
-          await sendStickerSafely(bot, chatId, "analysis");
-
-          console.log(
-            `Análise de perfil enviada com sucesso para usuário ${telegramUser.id}`
+        if (analysis.success) {
+          // Envia a análise como resposta
+          await sendSafeMarkdown(
+            bot,
+            chatId,
+            `*Análise de perfil profissional*\n\n${analysis.result}`,
+            { parse_mode: "Markdown" }
           );
+
+          // Envia um sticker
+          await sendStickerSafely(bot, chatId, "brag_document");
         } else {
-          // Envia a mensagem de erro retornada pela função
-          await bot.sendMessage(chatId, analysisResult.result);
-
-          console.error(
-            `[ERROR] Falha na análise de perfil para usuário ${telegramUser.id}: ${analysisResult.result}`
+          // Envia mensagem de erro se a análise falhar
+          bot.sendMessage(
+            chatId,
+            "Desculpe, não foi possível completar a análise do seu perfil. Por favor, tente novamente mais tarde ou entre em contato com o suporte."
           );
         }
-      } catch (error) {
-        console.error("[ERROR] Erro ao processar análise de perfil:", error);
 
-        await bot.sendMessage(
+        // Remove a mensagem de carregamento
+        try {
+          await bot.deleteMessage(chatId, loadingMsg.message_id);
+        } catch (deleteError) {
+          console.warn(
+            `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+          );
+        }
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Análise concluída"
+        });
+      } catch (error) {
+        console.error("[ERROR] Erro ao analisar perfil profissional:", error);
+
+        // Remove a mensagem de carregamento
+        try {
+          await bot.deleteMessage(chatId, loadingMsg.message_id);
+        } catch (deleteError) {
+          console.warn(
+            `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+          );
+        }
+
+        bot.sendMessage(
           chatId,
-          "Desculpe, não foi possível completar a análise do seu perfil. Por favor, tente novamente mais tarde ou entre em contato com o suporte."
+          "Ocorreu um erro ao analisar seu perfil. Por favor, tente novamente mais tarde."
         );
+
+        bot.answerCallbackQuery(callbackQuery.id, {
+          text: "Erro na análise"
+        });
       }
     } else {
-      console.warn(`Callback desconhecido recebido: ${data}`);
-      bot.answerCallbackQuery(callbackQuery.id, { text: "Ação desconhecida" });
+      console.warn(`Comando inválido recebido: ${data}`);
+      bot.answerCallbackQuery(callbackQuery.id, {
+        text: "Comando inválido"
+      });
     }
   } catch (error) {
     console.error("Erro ao processar callback:", error);
-
-    try {
-      if (callbackQuery.message) {
-        bot.sendMessage(
-          callbackQuery.message.chat.id,
-          "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente ou use /start para reiniciar."
-        );
-      }
-
-      bot.answerCallbackQuery(callbackQuery.id, { text: "Ocorreu um erro" });
-    } catch (sendError) {
-      console.error("Erro ao enviar resposta de erro:", sendError);
-    }
+    bot.answerCallbackQuery(callbackQuery.id, {
+      text: "Erro ao processar"
+    });
   }
 };
 
@@ -1901,77 +1817,3 @@ async function generateAndSendPDF(
     );
   }
 }
-
-// Funções auxiliares para testes (exportadas apenas em ambiente de teste)
-export const _testHelpers = {
-  setOnboardingStatus: (userId: number, status: boolean) => {
-    if (status) {
-      onboardingInProgress.set(userId, true);
-    } else {
-      onboardingInProgress.delete(userId);
-    }
-  },
-  getOnboardingStatus: (userId: number) => {
-    return onboardingInProgress.get(userId) || false;
-  },
-  clearOnboardingStatus: () => {
-    onboardingInProgress.clear();
-  },
-  // Adicionando exportações para os novos handlers para testes
-  handleSaveActivity: async (
-    bot: TelegramBot,
-    callbackQuery: TelegramBot.CallbackQuery
-  ) => {
-    if (!callbackQuery.message || !callbackQuery.data) return;
-
-    const chatId = callbackQuery.message.chat.id;
-    const messageId = callbackQuery.message.message_id;
-    const data = callbackQuery.data;
-
-    // Extrair o ID da mensagem de forma consistente com o handler principal
-    let pendingMessageId;
-    try {
-      const parts = data.split(":");
-      if (parts.length === 2 && parts[0] === "save_activity") {
-        pendingMessageId = parseInt(parts[1], 10);
-      } else {
-        console.warn(`Formato inválido para save_activity: ${data}`);
-        return;
-      }
-    } catch (error) {
-      console.error(`Erro ao extrair ID da mensagem: ${error}`);
-      return;
-    }
-
-    if (isNaN(pendingMessageId) || !pendingActivities.has(pendingMessageId)) {
-      console.warn(`Atividade pendente não encontrada: ${pendingMessageId}`);
-      return;
-    }
-
-    const pendingActivity = pendingActivities.get(pendingMessageId)!;
-    try {
-      const activity = await createActivity(
-        pendingActivity.userId,
-        pendingActivity.content,
-        pendingActivity.urgency || "medium",
-        pendingActivity.impact || "medium"
-      );
-
-      const timestamp = formatTimestamp(activity.createdAt);
-      await bot.editMessageText(
-        `✅ Atividade registrada com sucesso!\n\nID: ${activity.id}\nData: ${timestamp}\n\nConteúdo:\n"${pendingActivity.content}"\n\n• Urgência: ${formatUrgencyLabel(pendingActivity.urgency || "medium")}\n• Impacto: ${formatImpactLabel(pendingActivity.impact || "medium")}`,
-        {
-          chat_id: chatId,
-          message_id: messageId
-        }
-      );
-
-      await sendStickerSafely(bot, chatId, "new_activity");
-      pendingActivities.delete(pendingMessageId);
-
-      return activity;
-    } catch (error) {
-      throw error;
-    }
-  }
-};

@@ -36,7 +36,7 @@ describe("Tratamento de Erros e Fluxos Inválidos", () => {
       expect(mockBot.answerCallbackQuery).toHaveBeenCalledWith(
         callbackQuery.id,
         expect.objectContaining({
-          text: expect.stringContaining("Ação desconhecida")
+          text: "Comando inválido"
         })
       );
     });
@@ -58,7 +58,7 @@ describe("Tratamento de Erros e Fluxos Inválidos", () => {
       expect(mockBot.answerCallbackQuery).toHaveBeenCalledWith(
         callbackQuery.id,
         expect.objectContaining({
-          text: expect.stringContaining("Ação desconhecida")
+          text: "Comando inválido"
         })
       );
     });
@@ -131,7 +131,7 @@ describe("Tratamento de Erros e Fluxos Inválidos", () => {
       expect(mockBot.answerCallbackQuery).toHaveBeenCalledWith(
         callbackQuery.id,
         expect.objectContaining({
-          text: expect.stringContaining("Ocorreu um erro")
+          text: "Erro ao processar"
         })
       );
     });

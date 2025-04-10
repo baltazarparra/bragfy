@@ -1,4 +1,4 @@
-import { jest } from "@jest/globals";
+import { jest, describe, beforeEach, it, expect } from "@jest/globals";
 import { handleNewChat } from "../../../src/bot/commands";
 import {
   createMockBot,
@@ -72,7 +72,8 @@ describe("Fluxo de Atividades", () => {
 
       // Assert - Verifica que não houve chamada com mensagem de carregamento da primeira atividade
       const loadingCalls = mockBot.sendMessage.mock.calls.filter(
-        (call) => call[1] === "⏳ Registrando sua primeira atividade do dia..."
+        (call: [number, string, any]) =>
+          call[1] === "⏳ Registrando sua primeira atividade do dia..."
       );
       expect(loadingCalls.length).toBe(0);
 

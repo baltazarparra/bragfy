@@ -2,9 +2,10 @@ import { generateBragDocumentPDF } from "../../src/utils/pdfUtils";
 import { formatTimestamp } from "../../src/utils/activityUtils";
 import { formatUrgencyLabel } from "../../src/utils/activityUtils";
 import { formatImpactLabel } from "../../src/utils/activityUtils";
+import { BragActivity, BragUser } from "../../src/types";
 
 // Mock de dados necessários para o teste
-const mockUser = {
+const mockUser: BragUser = {
   id: 1,
   telegramId: 123456789,
   firstName: "João",
@@ -12,7 +13,7 @@ const mockUser = {
   username: "joaosilva"
 };
 
-const mockActivities = [
+const mockActivities: BragActivity[] = [
   {
     id: 1,
     content: "Implementei nova funcionalidade",

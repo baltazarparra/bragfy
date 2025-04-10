@@ -258,10 +258,11 @@ export function mockActivities(userId: number, period: string): Activity[] {
     }
   ];
 
-  // Usar any para contornar problemas de tipo
-  mocks.getActivitiesByPeriod.mockImplementation(() =>
-    Promise.resolve(activities as any)
-  );
+  if (period) {
+    mocks.getActivitiesByPeriod
+      .mockResolvedValueOnce(activities as any)
+      .mockResolvedValue([]);
+  }
 
   return activities;
 }
@@ -355,3 +356,71 @@ export function setupMocksBeforeEach() {
       `${new Date(date).toLocaleDateString()} às ${new Date(date).toLocaleTimeString()}`
   );
 }
+
+// Adicionar testes para as funções auxiliares
+describe("Funções de Setup para Testes", () => {
+  describe("createMockBot", () => {
+    it("cria um mock de bot com métodos necessários", () => {
+      const bot = createMockBot();
+
+      expect(bot.sendMessage).toBeDefined();
+      expect(bot.sendSticker).toBeDefined();
+      expect(bot.deleteMessage).toBeDefined();
+      expect(bot.editMessageText).toBeDefined();
+      expect(bot.answerCallbackQuery).toBeDefined();
+    });
+
+    it("retorna valores simulados para métodos do bot", async () => {
+      const bot = createMockBot();
+
+      const result = await bot.sendMessage(123, "teste");
+      expect(result).toEqual({ message_id: 100 });
+    });
+  });
+
+  describe("createMessage", () => {
+    it("cria uma mensagem simulada com os parâmetros fornecidos", () => {
+      const userId = 123;
+      const chatId = 456;
+      const text = "Mensagem de teste";
+
+      const message = createMessage(userId, chatId, text);
+
+      expect(message.from?.id).toBe(userId);
+      expect(message.chat.id).toBe(chatId);
+      expect(message.text).toBe(text);
+    });
+  });
+
+  describe("createCallbackQuery", () => {
+    it("cria um callback query com dados fornecidos", () => {
+      const userId = 123;
+      const data = "callback:data";
+
+      const query = createCallbackQuery(
+        "query-id",
+        userId,
+        undefined,
+        undefined,
+        data
+      );
+
+      expect(query.id).toBe("query-id");
+      expect(query.from.id).toBe(userId);
+      expect(query.data).toBe(data);
+    });
+  });
+
+  describe("mockExistingUser", () => {
+    it("retorna um usuário simulado e configura mocks", () => {
+      const userId = 123456;
+
+      const user = mockExistingUser(userId);
+
+      expect(user.telegramId).toBe(userId);
+      // Simples verificação se o mock foi configurado corretamente
+      expect(mocks.userExists).not.toBeUndefined();
+      expect(mocks.getUserByTelegramId).not.toBeUndefined();
+    });
+  });
+});
