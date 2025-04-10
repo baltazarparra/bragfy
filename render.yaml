@@ -1,16 +1,14 @@
 services:
   - type: web
-    name: bragfy
+    name: bragfy-agent
     env: node
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm run start:prod
     autoDeploy: true
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        sync: false
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: OPENROUTER_API_KEY
-        sync: false
+      - key: RENDER
+        value: true

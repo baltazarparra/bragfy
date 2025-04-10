@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import { initBot } from "./bot";
+import express from "express";
 
 // Carrega variáveis de ambiente
 dotenv.config();
@@ -13,13 +14,66 @@ if (!token && process.env.NODE_ENV === "production") {
   process.exit(1);
 }
 
+// Determina se estamos rodando no Render
+const isRender = !!process.env.RENDER;
+// Obtém a porta do ambiente ou usa 3000 como padrão
+const PORT = process.env.PORT || 3000;
+
+// Função para manter o processo vivo sem usar servidor HTTP
+const keepAlive = () => {
+  console.log("🔄 Mantendo processo vivo...");
+  // Executa a cada minuto para manter o processo vivo
+  return setInterval(() => {
+    const timestamp = new Date().toISOString();
+    console.log(`🔄 Processo ativo em ${timestamp}`);
+  }, 60 * 1000);
+};
+
+// Configura um servidor HTTP mínimo para health checks se necessário
+const setupHealthServer = () => {
+  const app = express();
+
+  // Rota de health check simples
+  app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // Rota raiz
+  app.get("/", (req, res) => {
+    res.status(200).json({ 
+      name: "Bragfy Agent", 
+      status: "running", 
+      env: process.env.NODE_ENV || "development" 
+    });
+  });
+
+  // Inicia o servidor
+  return app.listen(PORT, () => {
+    console.log(`🌐 Servidor HTTP para health checks rodando na porta ${PORT}`);
+  });
+};
+
 // Função principal de inicialização
 const main = async () => {
   try {
     console.log("🚀 Iniciando Bragfy Agent...");
 
-    // Modo de simulação se não houver token do Telegram
-    if (!token) {
+    // Inicializa o bot
+    const bot = initBot(token);
+
+    // Configura o ambiente baseado no contexto
+    if (isRender) {
+      if (process.env.NODE_ENV === "production") {
+        console.log("☁️ Rodando como worker em ambiente Render (produção)");
+        // Em produção no Render, configuramos um servidor HTTP básico para health checks
+        setupHealthServer();
+      } else {
+        console.log("☁️ Rodando em ambiente Render (não-produção)");
+        // Mantém o processo vivo sem servidor HTTP
+        keepAlive();
+      }
+    } else if (!token) {
+      // Modo de simulação local sem token do Telegram
       console.log(
         "⚠️ Token não configurado. Iniciando em modo de simulação..."
       );
@@ -96,10 +150,10 @@ const main = async () => {
         // Exibe o prompt novamente
         process.stdout.write("\nbragfy> ");
       });
+    } else {
+      // Ambiente de desenvolvimento normal com token
+      console.log("🏠 Rodando em ambiente de desenvolvimento local");
     }
-
-    // Inicializa o bot
-    const bot = initBot(token);
 
     console.log("✅ Bragfy está rodando! Pressione CTRL+C para encerrar.");
 
