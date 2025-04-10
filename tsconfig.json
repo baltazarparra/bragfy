@@ -29,7 +29,7 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "outDir": "./dist",
-    "rootDir": "./",
+    "rootDir": "./src",
     // "baseUrl": "./",                                  /* Specify the base directory to resolve non-relative module names. */
     // "paths": {},                                      /* Specify a set of entries that re-map imports to additional lookup locations. */
     // "rootDirs": [],                                   /* Allow multiple folders to be treated as one when resolving modules. */
@@ -110,6 +110,6 @@
     // "skipDefaultLibCheck": true,                      /* Skip type checking .d.ts files that are included with TypeScript. */
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "src/types/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "src/types/**/*"],
+  "exclude": ["node_modules", "dist", "tests/**/*"]
 }

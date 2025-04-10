@@ -8,7 +8,7 @@
     "prebuild": "npm run clean && npx prisma generate",
     "build": "tsc -p tsconfig.build.json",
     "start": "NODE_ENV=production ts-node src/main.ts",
-    "start:prod": "node scripts/setup-prisma.js && NODE_ENV=production node dist/main.js",
+    "start:prod": "node scripts/setup-prisma.js && npm run build && NODE_ENV=production node dist/main.js",
     "dev": "nodemon --exec ts-node src/main.ts",
     "lint": "eslint './src/**/*.{ts,tsx}'",
     "lint:fix": "eslint './src/**/*.{ts,tsx}' --fix",
