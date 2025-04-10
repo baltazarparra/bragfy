@@ -1,5 +1,6 @@
 import { prisma, User } from "../db/client";
-import { User as TelegramUser } from "node-telegram-bot-api";
+import TelegramBot from "node-telegram-bot-api";
+type TelegramUser = TelegramBot.User;
 
 /**
  * Verifica se um usuário já existe no banco de dados
