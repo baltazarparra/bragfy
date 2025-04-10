@@ -50,7 +50,7 @@ export const createLinkReadyHandler = (bot: TelegramBot) => {
         `[API] Notificação enviada com sucesso para o usuário ${userId}`
       );
       return res.status(200).json({ success: true });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[API] Erro ao processar requisição de link-ready:`, error);
       return res.status(500).json({ error: "Erro interno do servidor" });
     }

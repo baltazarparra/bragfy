@@ -46,7 +46,7 @@ export const initBot = (token: string): TelegramBot => {
   activeLoadingAnimations.clear();
 
   // Registra handler para o comando /start com parâmetro opcional
-  bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
+  bot.onText(/\/start(?:\s+(.+))?/, (msg, match: RegExpExecArray | null) => {
     const source = match ? match[1] : undefined;
     handleStartCommand(bot, msg, source);
   });
@@ -190,7 +190,7 @@ export const initBot = (token: string): TelegramBot => {
   });
 
   // Trata erros
-  bot.on("polling_error", (err) => {
+  bot.on("polling_error", (err: Error) => {
     console.error("Erro de polling:", err);
   });
 

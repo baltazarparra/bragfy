@@ -25,7 +25,7 @@ export const createUser = async (telegramUser: TelegramUser): Promise<User> => {
       }
     });
     return user;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Erro ao criar usuário:", error);
     throw error;
   }
