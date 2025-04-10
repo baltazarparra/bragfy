@@ -46,13 +46,16 @@ export const initBot = (token: string): TelegramBot => {
   activeLoadingAnimations.clear();
 
   // Registra handler para o comando /start com parâmetro opcional
-  bot.onText(/\/start(?:\s+(.+))?/, (msg, match: RegExpExecArray | null) => {
-    const source = match ? match[1] : undefined;
-    handleStartCommand(bot, msg, source);
-  });
+  bot.onText(
+    /\/start(?:\s+(.+))?/,
+    (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
+      const source = match ? match[1] : undefined;
+      handleStartCommand(bot, msg, source);
+    }
+  );
 
   // Registra handler para todas as mensagens
-  bot.on("message", async (msg) => {
+  bot.on("message", async (msg: TelegramBot.Message) => {
     // Ignora comandos
     if (msg.text && msg.text.startsWith("/")) return;
 
@@ -94,7 +97,7 @@ export const initBot = (token: string): TelegramBot => {
             2
           );
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn(`Erro ao enviar loader para usuário ${userId}:`, error);
       }
     } else {
@@ -123,7 +126,7 @@ export const initBot = (token: string): TelegramBot => {
             1
           );
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn(`Erro ao enviar loader para usuário ${userId}:`, error);
       }
     }
@@ -140,7 +143,7 @@ export const initBot = (token: string): TelegramBot => {
           try {
             await bot.deleteMessage(loadingInfo.chatId, loadingInfo.messageId);
             console.log(`[LOADER] Removido com sucesso para ${userId}`);
-          } catch (deleteError) {
+          } catch (deleteError: unknown) {
             console.warn(`[LOADER] Erro ao remover loader: ${deleteError}`);
           } finally {
             // Limpa a referência independente do resultado
@@ -148,13 +151,13 @@ export const initBot = (token: string): TelegramBot => {
           }
         }, 500);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn(`[LOADER] Erro ao processar remoção: ${error}`);
     }
   });
 
   // Registra handler para callbacks de botões inline
-  bot.on("callback_query", (query) => {
+  bot.on("callback_query", (query: TelegramBot.CallbackQuery) => {
     handleCallbackQuery(bot, query);
 
     // Tenta remover qualquer loader ativo após o callback
@@ -171,7 +174,7 @@ export const initBot = (token: string): TelegramBot => {
               console.log(
                 `[LOADER] Removido após callback para ${query.from!.id}`
               );
-            } catch (deleteError) {
+            } catch (deleteError: unknown) {
               console.warn(
                 `[LOADER] Erro ao remover loader após callback: ${deleteError}`
               );
@@ -181,7 +184,7 @@ export const initBot = (token: string): TelegramBot => {
             }
           }, 500);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn(
           `[LOADER] Erro ao processar remoção após callback: ${error}`
         );

@@ -110,7 +110,7 @@ export function splitLongMessage(
           for (const dividerPattern of activityDividers) {
             // Encontra a última ocorrência do divisor antes do limite
             const regex = new RegExp(dividerPattern, "g");
-            let match;
+            let match: RegExpExecArray | null;
             let lastPos = -1;
 
             // Busca a última ocorrência antes do limite
@@ -235,7 +235,7 @@ export async function sendSafeMarkdown(
     let sanitizedText = "";
     try {
       sanitizedText = escapeMarkdown(text);
-    } catch (sanitizeError) {
+    } catch (sanitizeError: unknown) {
       console.warn("[TELEGRAM] Erro ao sanitizar Markdown:", sanitizeError);
       // Fallback: enviar sem parse_mode - garantir que seja deletado
       delete messageOptions.parse_mode;
@@ -264,7 +264,7 @@ export async function sendSafeMarkdown(
           try {
             const message = await bot.sendMessage(chatId, part, cleanOptions);
             messages.push(message);
-          } catch (error) {
+          } catch (error: unknown) {
             console.error(
               "[TELEGRAM] Erro ao enviar parte da mensagem:",
               error
@@ -274,7 +274,7 @@ export async function sendSafeMarkdown(
               const plainOptions = { ...cleanOptions };
               const message = await bot.sendMessage(chatId, part, plainOptions);
               messages.push(message);
-            } catch (plainError) {
+            } catch (plainError: unknown) {
               console.error(
                 "[TELEGRAM] Erro ao enviar sem formatação:",
                 plainError
@@ -333,7 +333,7 @@ export async function sendSafeMarkdown(
 
           const message = await bot.sendMessage(chatId, part, partOptions);
           messages.push(message);
-        } catch (error) {
+        } catch (error: unknown) {
           console.error("[TELEGRAM] Erro ao enviar parte da mensagem:", error);
           // Tentar enviar sem formatação em caso de erro
           try {
@@ -352,7 +352,7 @@ export async function sendSafeMarkdown(
 
             const message = await bot.sendMessage(chatId, part, plainOptions);
             messages.push(message);
-          } catch (plainError) {
+          } catch (plainError: unknown) {
             console.error(
               "[TELEGRAM] Erro ao enviar sem formatação:",
               plainError
@@ -363,7 +363,7 @@ export async function sendSafeMarkdown(
 
       return messages;
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[TELEGRAM] Erro ao enviar mensagem:", error);
     // Última tentativa: enviar mensagem simples de erro
     try {
@@ -371,7 +371,7 @@ export async function sendSafeMarkdown(
         chatId,
         "Não foi possível enviar a mensagem formatada. Por favor, tente novamente mais tarde."
       );
-    } catch (finalError) {
+    } catch (finalError: unknown) {
       console.error(
         "[TELEGRAM] Erro fatal ao enviar mensagem de fallback:",
         finalError
