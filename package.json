@@ -12,7 +12,15 @@
     "format": "prettier --write './src/**/*.{ts,tsx}'",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "db:migrate": "cross-env NODE_ENV=development node scripts/prisma-migrate.js --dev",
+    "db:migrate:prod": "cross-env NODE_ENV=production node scripts/prisma-migrate.js",
+    "migrate:prod": "cross-env NODE_ENV=production node scripts/prisma-migrate.js",
+    "db:init": "cross-env NODE_ENV=development node scripts/init-database.js",
+    "db:init:prod": "cross-env NODE_ENV=production node scripts/init-database.js",
+    "studio:prod": "cross-env NODE_ENV=production npx prisma studio",
+    "setup": "node setup.js",
+    "postinstall": "node scripts/prisma-migrate.js && prisma generate"
   },
   "repository": {
     "type": "git",
@@ -44,6 +52,7 @@
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
     "axios": "^1.8.4",
+    "cross-env": "^7.0.3",
     "eslint": "^9.23.0",
     "jest": "^29.7.0",
     "prettier": "^3.5.3",
