@@ -22,7 +22,18 @@ export interface Activity {
   updatedAt: Date;
 }
 
-// Exporta uma instância real do PrismaClient
-export const prisma = new PrismaClient();
+// Criação de instância do PrismaClient com tratamento de erro
+let prismaInstance: PrismaClient;
 
-export default prisma;
+try {
+  prismaInstance = new PrismaClient();
+  console.log("PrismaClient inicializado com sucesso");
+} catch (error) {
+  console.error("Erro ao inicializar PrismaClient:", error);
+  throw error;
+}
+
+// Exporta a instância do PrismaClient
+export const prisma = prismaInstance;
+
+export default prismaInstance;
