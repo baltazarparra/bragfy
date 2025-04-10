@@ -1,6 +1,13 @@
 import { Activity } from "../db/client";
 
 /**
+ * Modelos LLM disponíveis para uso com OpenRouter
+ */
+const LLM_MODELS = {
+  PRIMARY: "meta-llama/llama-3-8b-instruct"
+};
+
+/**
  * Interface para resposta da OpenRouter API
  */
 interface OpenRouterResponse {
@@ -470,7 +477,7 @@ export const analyzeProfileWithLLM = async (
           "X-Title": "Bragfy Agent"
         },
         body: JSON.stringify({
-          model: "meta-llama/llama-3-8b-instruct",
+          model: LLM_MODELS.PRIMARY,
           messages: [
             {
               role: "system",

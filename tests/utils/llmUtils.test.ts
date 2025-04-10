@@ -4,6 +4,11 @@ import {
 } from "../../src/utils/llmUtils";
 import { Activity } from "../../src/db/client";
 
+// Importa constantes de modelos (re-exportando da implementação)
+const LLM_MODELS = {
+  PRIMARY: "meta-llama/llama-3-8b-instruct"
+};
+
 describe("llmUtils", () => {
   // Salvar o fetch original para restaurar depois
   const originalFetch = global.fetch;
@@ -113,7 +118,7 @@ describe("llmUtils", () => {
 
       // Verifica o corpo da requisição
       const requestBody = JSON.parse(fetchCall[1].body);
-      expect(requestBody.model).toBe("meta-llama/llama-3-8b-instruct");
+      expect(requestBody.model).toBe(LLM_MODELS.PRIMARY);
 
       // Verifica o conteúdo do prompt do sistema
       const systemMessage = requestBody.messages.find(
@@ -258,6 +263,10 @@ describe("llmUtils", () => {
       expect(body2.messages.find((m: any) => m.role === "user").content).toBe(
         "activity 2"
       );
+
+      // Verify both calls use the correct model
+      expect(body1.model).toBe(LLM_MODELS.PRIMARY);
+      expect(body2.model).toBe(LLM_MODELS.PRIMARY);
     });
 
     it("should handle 401 unauthorized response", async () => {
@@ -294,6 +303,12 @@ describe("llmUtils", () => {
           })
         })
       );
+
+      // Verify correct model was used
+      const body = JSON.parse(
+        (global.fetch as jest.Mock).mock.calls[0][1].body
+      );
+      expect(body.model).toBe(LLM_MODELS.PRIMARY);
     });
   });
 
