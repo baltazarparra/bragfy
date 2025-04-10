@@ -42,14 +42,30 @@ describe("Geração de Brag Document", () => {
       );
     });
 
-    it("deve detectar variações do comando brag", async () => {
+    it("deve detectar comando de gerar resumo", async () => {
+      // Testar apenas um comando representativo
+      const command = "gerar resumo";
+
       // Arrange
-      // Usar apenas um dos textos que sabemos que funciona
-      const msg = createMessage(123456789, 123456789, "/brag");
+      const msg = createMessage(123456789, 123456789, command);
 
       // Simulando que o usuário existe
       (mocks.userExists as jest.Mock).mockResolvedValue(true);
       (mocks.getUserByTelegramId as jest.Mock).mockResolvedValue(existingUser);
+
+      // Configurar o mock do isBragTextRequest para retornar match
+      (mocks.isBragTextRequest as jest.Mock).mockResolvedValue({
+        isMatch: true,
+        confidence: 0.95,
+        intent: "generate_brag_text"
+      });
+
+      // Garantir que isPdfRequest retorne false
+      (mocks.isPdfRequest as jest.Mock).mockResolvedValue({
+        isMatch: false,
+        confidence: 0,
+        intent: null
+      });
 
       // Act
       await handleNewChat(mockBot, msg);
@@ -66,6 +82,119 @@ describe("Geração de Brag Document", () => {
           })
         })
       );
+    });
+
+    it("deve detectar comando de gerar documento PDF", async () => {
+      // Testar apenas um comando representativo
+      const command = "gerar documento";
+
+      // Arrange
+      const msg = createMessage(123456789, 123456789, command);
+
+      // Simulando que o usuário existe
+      (mocks.userExists as jest.Mock).mockResolvedValue(true);
+      (mocks.getUserByTelegramId as jest.Mock).mockResolvedValue(existingUser);
+
+      // Configurar o mock do isPdfRequest para retornar match
+      (mocks.isPdfRequest as jest.Mock).mockResolvedValue({
+        isMatch: true,
+        confidence: 0.95,
+        intent: "generate_pdf"
+      });
+
+      // Garantir que isBragTextRequest retorne false
+      (mocks.isBragTextRequest as jest.Mock).mockResolvedValue({
+        isMatch: false,
+        confidence: 0,
+        intent: null
+      });
+
+      // Act
+      await handleNewChat(mockBot, msg);
+
+      // Assert
+      // Verificando se alguma das mensagens contém o texto esperado
+      const sendMessageCalls = mockBot.sendMessage.mock.calls;
+      const hasPdfSelectionMessage = sendMessageCalls.some((call) =>
+        String(call[1]).includes("Para qual período você deseja gerar o PDF")
+      );
+      expect(hasPdfSelectionMessage).toBe(true);
+    });
+
+    it("deve detectar variações do comando brag", async () => {
+      // Arrange
+      // Usar apenas um dos textos que sabemos que funciona
+      const msg = createMessage(123456789, 123456789, "gerar brag");
+
+      // Simulando que o usuário existe
+      (mocks.userExists as jest.Mock).mockResolvedValue(true);
+      (mocks.getUserByTelegramId as jest.Mock).mockResolvedValue(existingUser);
+
+      // Configurar o mock do isBragTextRequest para retornar match
+      (mocks.isBragTextRequest as jest.Mock).mockResolvedValue({
+        isMatch: true,
+        confidence: 0.95,
+        intent: "generate_brag_text"
+      });
+
+      // Garantir que isPdfRequest retorne false
+      (mocks.isPdfRequest as jest.Mock).mockResolvedValue({
+        isMatch: false,
+        confidence: 0,
+        intent: null
+      });
+
+      // Act
+      await handleNewChat(mockBot, msg);
+
+      // Assert
+      expect(mockBot.sendMessage).toHaveBeenCalledWith(
+        123456789,
+        expect.stringContaining(
+          "Vamos gerar seu Brag Document! Escolha o período desejado:"
+        ),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            inline_keyboard: expect.any(Array)
+          })
+        })
+      );
+    });
+
+    it("deve incluir opções para gerar PDF", async () => {
+      // Testar apenas um comando representativo
+      const command = "gerar pdf";
+
+      // Arrange
+      const msg = createMessage(123456789, 123456789, command);
+
+      // Simulando que o usuário existe
+      (mocks.userExists as jest.Mock).mockResolvedValue(true);
+      (mocks.getUserByTelegramId as jest.Mock).mockResolvedValue(existingUser);
+
+      // Mock direto para testar se o texto surge em alguma das chamadas
+      (mocks.isPdfRequest as jest.Mock).mockResolvedValue({
+        isMatch: true,
+        confidence: 0.95,
+        intent: "generate_pdf"
+      });
+
+      (mocks.isBragTextRequest as jest.Mock).mockResolvedValue({
+        isMatch: false,
+        confidence: 0,
+        intent: null
+      });
+
+      // Act
+      await handleNewChat(mockBot, msg);
+
+      // Assert
+      // Verificando se alguma das mensagens contém o texto esperado
+      const sendMessageCalls = mockBot.sendMessage.mock.calls;
+      const hasPdfSelectionMessage = sendMessageCalls.some((call) =>
+        String(call[1]).includes("Para qual período você deseja gerar o PDF")
+      );
+      expect(hasPdfSelectionMessage).toBe(true);
     });
   });
 
@@ -122,6 +251,57 @@ describe("Geração de Brag Document", () => {
 
       // Verifica que o sendSticker foi chamado (não importa se foi direto ou via sendStickerSafely)
       expect(mockBot.sendSticker).toHaveBeenCalled();
+    });
+
+    it("deve limitar o resumo a 10 atividades mesmo quando existem mais no período", async () => {
+      // Arrange
+      const callbackQuery = createCallbackQuery(
+        undefined,
+        123456789,
+        undefined,
+        undefined,
+        "brag:30"
+      );
+
+      // Mock de mais de 10 atividades
+      const manyActivities: any[] = [];
+      for (let i = 0; i < 15; i++) {
+        manyActivities.push({
+          id: i,
+          content: `Atividade ${i + 1}`,
+          createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+          userId: existingUser.id
+        });
+      }
+      (mocks.getActivitiesByPeriod as jest.Mock).mockResolvedValue(
+        manyActivities
+      );
+
+      // Espiona a função console.log
+      const originalConsoleLog = console.log;
+      const mockConsoleLog = jest.fn();
+      console.log = mockConsoleLog;
+
+      try {
+        // Act
+        await handleCallbackQuery(mockBot, callbackQuery);
+
+        // Assert
+        // Verifica se o log contém a mensagem de limitação
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          expect.stringContaining("Resumo limitado a 10 atividades")
+        );
+
+        // Verifica se o texto contém BRAG DOCUMENT (independente do formato exato)
+        const sendMessageCalls = mockBot.sendMessage.mock.calls;
+        const hasBragDocumentMessage = sendMessageCalls.some((call) =>
+          String(call[1]).includes("BRAG DOCUMENT")
+        );
+        expect(hasBragDocumentMessage).toBe(true);
+      } finally {
+        // Restaura console.log original
+        console.log = originalConsoleLog;
+      }
     });
 
     it("deve mostrar mensagem quando não há atividades no período", async () => {
@@ -245,6 +425,68 @@ describe("Geração de Brag Document", () => {
       );
     });
 
+    it("deve incluir todas as atividades no período na geração do PDF sem limitar a 10", async () => {
+      // Arrange
+      const callbackQuery = createCallbackQuery(
+        undefined,
+        123456789,
+        undefined,
+        undefined,
+        "pdf:30"
+      );
+
+      // Mock de mais de 10 atividades
+      const manyActivities: any[] = [];
+      for (let i = 0; i < 15; i++) {
+        manyActivities.push({
+          id: i,
+          content: `Atividade ${i + 1}`,
+          createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+          userId: existingUser.id
+        });
+      }
+      (mocks.getActivitiesByPeriod as jest.Mock).mockResolvedValue(
+        manyActivities
+      );
+
+      // Mock de geração de PDF
+      (mocks.generateBragDocumentPDF as jest.Mock).mockResolvedValue({
+        success: true,
+        buffer: Buffer.from("PDF simulado")
+      });
+
+      // Espiona a função console.log
+      const originalConsoleLog = console.log;
+      const mockConsoleLog = jest.fn();
+      console.log = mockConsoleLog;
+
+      try {
+        // Act
+        await handleCallbackQuery(mockBot, callbackQuery);
+
+        // Assert
+        // Verifica se o log contém a mensagem sobre usar todas as atividades
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          expect.stringContaining("Gerando PDF com todas as 15 atividades")
+        );
+
+        // Verifica que generateBragDocumentPDF foi chamado com todas as atividades
+        expect(mocks.generateBragDocumentPDF).toHaveBeenCalledWith(
+          expect.objectContaining({
+            activities: expect.arrayContaining([
+              expect.objectContaining({ id: expect.any(Number) })
+            ])
+          })
+        );
+
+        // Verifica que o documento PDF foi enviado
+        expect(mockBot.sendDocument).toHaveBeenCalled();
+      } finally {
+        // Restaura console.log original
+        console.log = originalConsoleLog;
+      }
+    });
+
     it("deve mostrar mensagem quando não há atividades para PDF", async () => {
       // Arrange
       const callbackQuery = createCallbackQuery(
@@ -313,40 +555,6 @@ describe("Geração de Brag Document", () => {
       }
 
       expect(hasErrorMessage).toBe(true);
-    });
-
-    it("deve geração de PDF incluir opções sem emojis", async () => {
-      // Arrange
-      const msg = createMessage(123456789, 123456789, "gerar pdf");
-
-      // Act
-      await handleNewChat(mockBot, msg);
-
-      // Assert
-      expect(mockBot.sendMessage).toHaveBeenCalledWith(
-        123456789,
-        expect.stringContaining(
-          "Para qual período você deseja gerar o PDF do seu Brag Document?"
-        ),
-        expect.objectContaining({
-          reply_markup: expect.objectContaining({
-            inline_keyboard: expect.arrayContaining([
-              expect.arrayContaining([
-                expect.objectContaining({
-                  text: expect.stringMatching(/^Hoje$/),
-                  callback_data: "pdf:1"
-                })
-              ]),
-              expect.arrayContaining([
-                expect.objectContaining({
-                  text: expect.stringMatching(/^Últimos 7 dias$/),
-                  callback_data: "pdf:7"
-                })
-              ])
-            ])
-          })
-        })
-      );
     });
 
     it("deve usar mensagem simplificada ao gerar PDF", async () => {

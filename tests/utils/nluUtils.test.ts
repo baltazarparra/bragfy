@@ -79,7 +79,10 @@ jest.mock("node-nlp", () => {
             lowerText.includes("criar") ||
             lowerText.includes("quero"))) ||
         (lowerText.includes("arquivo") &&
-          (lowerText.includes("brag") || lowerText.includes("documento")))
+          (lowerText.includes("brag") || lowerText.includes("documento"))) ||
+        lowerText === "gerar meu documento" ||
+        lowerText === "quero meu brag document" ||
+        lowerText === "gerar documento"
       ) {
         return { intent: "generate_pdf", score: 0.95 };
       }
@@ -99,7 +102,12 @@ jest.mock("node-nlp", () => {
         "criar documento",
         "criar relatório",
         "gerar texto do brag",
-        "texto do brag"
+        "texto do brag",
+        "gerar resumo",
+        "ver resumo",
+        "gerar meu resumo",
+        "me mostra meu resumo",
+        "resumo das minhas atividades"
       ];
 
       const isBragCommand = bragPatterns.some((pattern) =>
@@ -200,6 +208,21 @@ describe("NLU Utils", () => {
       expect(result.intent).toBe("generate_pdf");
     });
 
+    it("deve identificar solicitações de documento", async () => {
+      const documentVariations = [
+        "gerar meu documento",
+        "quero meu brag document",
+        "gerar documento"
+      ];
+
+      for (const variation of documentVariations) {
+        const result = await isPdfRequest(variation);
+        expect(result.isMatch).toBe(true);
+        expect(result.intent).toBe("generate_pdf");
+        expect(result.confidence).toBeGreaterThan(0.85);
+      }
+    });
+
     it("não deve identificar solicitações não relacionadas a PDF", async () => {
       const result1 = await isPdfRequest("registrar atividade");
       expect(result1.isMatch).toBe(false);
@@ -233,6 +256,23 @@ describe("NLU Utils", () => {
       expect(result.isMatch).toBe(true);
       expect(result.intent).toBe("generate_brag_text");
       expect(result.confidence).toBe(1.0);
+    });
+
+    it("deve identificar solicitações de resumo", async () => {
+      const resumoVariations = [
+        "gerar resumo",
+        "ver resumo",
+        "gerar meu resumo",
+        "me mostra meu resumo",
+        "resumo das minhas atividades"
+      ];
+
+      for (const variation of resumoVariations) {
+        const result = await isBragTextRequest(variation);
+        expect(result.isMatch).toBe(true);
+        expect(result.intent).toBe("generate_brag_text");
+        expect(result.confidence).toBeGreaterThan(0.85);
+      }
     });
 
     it("não deve identificar solicitações não relacionadas a Brag Document", async () => {

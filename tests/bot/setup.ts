@@ -3,6 +3,7 @@ import * as userUtils from "../../src/utils/userUtils";
 import * as activityUtils from "../../src/utils/activityUtils";
 import * as pdfUtils from "../../src/utils/pdfUtils";
 import * as stickerUtils from "../../src/utils/stickerUtils";
+import * as nluUtils from "../../src/utils/nluUtils";
 import { BragDocumentPdfResult } from "../../src/utils/stickerUtils";
 
 // Nota: não importando prisma diretamente, pois está sendo mockado via jest.config.ts
@@ -117,6 +118,23 @@ export const mocks = {
     .mockImplementation(async () => {
       return true;
     }),
+  // Mocks para funções NLU
+  isPdfRequest: jest.spyOn(nluUtils, "isPdfRequest").mockImplementation(() =>
+    Promise.resolve({
+      isMatch: false,
+      confidence: 0,
+      intent: null
+    })
+  ),
+  isBragTextRequest: jest
+    .spyOn(nluUtils, "isBragTextRequest")
+    .mockImplementation(() =>
+      Promise.resolve({
+        isMatch: false,
+        confidence: 0,
+        intent: null
+      })
+    ),
   // Mocks do Prisma - usamos apenas os spyOn para os testes, os mocks reais estão em __mocks__/@prisma/client.js
   prismaUserFindUnique: jest.fn() as jest.SpyInstance<Promise<any>>,
   prismaUserCreate: jest.fn() as jest.SpyInstance<Promise<any>>,

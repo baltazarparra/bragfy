@@ -246,7 +246,9 @@ async function sendAndPinInstructions(
 
 • Para registrar uma atividade, basta enviar uma mensagem nesse chat e ela será registrada  
 
-• Para gerar seu Brag Document, você pode digitar: "*gerar brag*" ou se quiser uma versão em PDF você pode digitar "*gerar PDF*"`;
+• Para gerar seu resumo, você pode digitar: "*gerar resumo*" ou "*ver resumo*"
+
+• Para gerar seu Brag Document em PDF, você pode digitar: "*gerar documento*" ou "*gerar PDF*"`;
 
     // Envia a mensagem de instruções
     const sentMsg = await bot.sendMessage(chatId, instructionsMessage, {
@@ -750,6 +752,12 @@ export const handleCallbackQuery = async (
           `[DEBUG] getActivitiesByPeriod retornou ${activities.length} atividades para usuário ${telegramUser.id}`
         );
 
+        // Limita a apenas 10 atividades mais recentes para resumos
+        const limitedActivities = activities.slice(0, 10);
+        console.log(
+          `[DEBUG] Resumo limitado a ${limitedActivities.length} atividades para usuário ${telegramUser.id}`
+        );
+
         // Verifica se há atividades
         if (activities.length === 0) {
           console.log(
@@ -801,8 +809,8 @@ export const handleCallbackQuery = async (
         bragDocument += `\n*ATIVIDADES*\n`;
 
         // Itera através das atividades com formato mais limpo
-        for (let i = 0; i < activities.length; i++) {
-          const activity = activities[i];
+        for (let i = 0; i < limitedActivities.length; i++) {
+          const activity = limitedActivities[i];
           try {
             const timestamp = formatTimestamp(activity.createdAt);
             // Escapa caracteres especiais do Markdown
@@ -824,7 +832,7 @@ export const handleCallbackQuery = async (
             }
 
             // Adiciona uma linha divisória sutil entre atividades, exceto após a última
-            if (i < activities.length - 1) {
+            if (i < limitedActivities.length - 1) {
               bragDocument += `\n· · · · · · · · · ·\n`;
             }
           } catch (activityError) {
@@ -1738,6 +1746,11 @@ async function generateAndSendPDF(
       );
       return;
     }
+
+    // Para PDFs, usamos todas as atividades do período (sem limitar)
+    console.log(
+      `[DEBUG] Gerando PDF com todas as ${activities.length} atividades para o período de ${period} dia(s)`
+    );
 
     // Armazena as atividades para uso posterior na análise
     lastGeneratedDocumentActivities.set(user.telegramId, activities);
