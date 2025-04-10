@@ -250,15 +250,100 @@ const sanitizeAnalysisResponse = (
   // Verifica e corrige problemas básicos de sentido
   sanitized = fixMinorIssues(sanitized);
 
+  // --- TRATAMENTO ESPECÍFICO PARA MARKDOWN V2 DO TELEGRAM ---
+
+  // Truncar mensagem para máximo de 4096 caracteres (limite do Telegram)
+  if (sanitized.length > 4096) {
+    // Encontra o último ponto final antes do limite para não cortar no meio da frase
+    const lastPeriod = sanitized.lastIndexOf(".", 4093);
+    if (lastPeriod > 0) {
+      sanitized = sanitized.substring(0, lastPeriod + 1);
+    } else {
+      // Se não encontrar um ponto final próximo, corta no limite
+      sanitized = sanitized.substring(0, 4093) + "...";
+    }
+  }
+
   // Remover formatação Markdown se solicitado
   if (!keepMarkdown) {
     // Remover negrito (asteriscos)
     sanitized = sanitized.replace(/\*([^*]+)\*/g, "$1");
     // Remover itálico (sublinhados)
     sanitized = sanitized.replace(/_([^_]+)_/g, "$1");
+    return sanitized;
   }
 
-  return sanitized;
+  // Vamos usar uma abordagem simplificada para escape de Markdown V2
+
+  // 1. Extrair e salvar temporariamente as formatações existentes
+  const boldMatches: { original: string; content: string; index: number }[] =
+    [];
+  const italicMatches: { original: string; content: string; index: number }[] =
+    [];
+
+  // Encontrar todas as ocorrências de texto em negrito
+  let match;
+  const boldRegex = /\*([^*]+)\*/g;
+  while ((match = boldRegex.exec(sanitized)) !== null) {
+    boldMatches.push({
+      original: match[0],
+      content: match[1],
+      index: match.index
+    });
+  }
+
+  // Encontrar todas as ocorrências de texto em itálico
+  const italicRegex = /_([^_]+)_/g;
+  while ((match = italicRegex.exec(sanitized)) !== null) {
+    italicMatches.push({
+      original: match[0],
+      content: match[1],
+      index: match.index
+    });
+  }
+
+  // 2. Escapar todos os caracteres especiais na string
+  let escapedText = sanitized.replace(/([_*\[\]()~`>#+=\-|{}\.!\\])/g, "\\$1");
+
+  // 3. Restaurar as formatações originais, mas mantendo o escape nos caracteres dentro delas
+
+  // Remover as formatações escapadas de negrito
+  boldMatches.forEach((boldMatch) => {
+    const escapedOriginal = boldMatch.original.replace(
+      /([_*\[\]()~`>#+=\-|{}\.!\\])/g,
+      "\\$1"
+    );
+    // Criar o texto interno com o conteúdo escapado
+    const escapedContent = boldMatch.content.replace(
+      /([_*\[\]()~`>#+=\-|{}\.!\\])/g,
+      "\\$1"
+    );
+    // Criar a versão final com asteriscos não escapados e conteúdo escapado
+    const finalFormat = `*${escapedContent.replace(/\\\*/g, "*")}*`;
+
+    // Substituir no texto escapado
+    escapedText = escapedText.replace(escapedOriginal, finalFormat);
+  });
+
+  // Remover as formatações escapadas de itálico
+  italicMatches.forEach((italicMatch) => {
+    const escapedOriginal = italicMatch.original.replace(
+      /([_*\[\]()~`>#+=\-|{}\.!\\])/g,
+      "\\$1"
+    );
+    // Criar o texto interno com o conteúdo escapado
+    const escapedContent = italicMatch.content.replace(
+      /([_*\[\]()~`>#+=\-|{}\.!\\])/g,
+      "\\$1"
+    );
+    // Criar a versão final com sublinhados não escapados e conteúdo escapado
+    const finalFormat = `_${escapedContent.replace(/\\_/g, "_")}_`;
+
+    // Substituir no texto escapado
+    escapedText = escapedText.replace(escapedOriginal, finalFormat);
+  });
+
+  return escapedText;
 };
 
 /**
@@ -546,4 +631,17 @@ export const analyzeProfileWithLLM = async (
       result: "Falha na análise. Tente novamente mais tarde. (LLM-ERR)"
     };
   }
+};
+
+/**
+ * Versão exportada de sanitizeAnalysisResponse para testes
+ * @param text Texto para sanitizar
+ * @param keepMarkdown Se verdadeiro, mantém formatação markdown
+ * @returns Texto sanitizado
+ */
+export const sanitizeForTests = (
+  text: string,
+  keepMarkdown: boolean = true
+): string => {
+  return sanitizeAnalysisResponse(text, keepMarkdown);
 };
