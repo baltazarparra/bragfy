@@ -3,7 +3,8 @@ services:
     name: bragfy
     env: node
     buildCommand: npm install && npm run build
-    startCommand: npm run setup && npm start
+    startCommand: npm run start:prod
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
