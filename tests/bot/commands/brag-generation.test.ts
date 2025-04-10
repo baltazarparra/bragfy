@@ -114,7 +114,7 @@ describe("Geração de Brag Document", () => {
       // Verifica que o Brag Document foi enviado como uma nova mensagem
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         123456789,
-        expect.stringContaining("*BRAG DOCUMENT*"),
+        expect.stringContaining("\\*BRAG DOCUMENT\\*"),
         expect.objectContaining({
           parse_mode: "Markdown"
         })
@@ -297,10 +297,22 @@ describe("Geração de Brag Document", () => {
       await handleCallbackQuery(mockBot, callbackQuery);
 
       // Assert
-      expect(mockBot.sendMessage).toHaveBeenCalledWith(
-        123456789,
-        expect.stringContaining("Ocorreu um erro ao gerar seu PDF")
-      );
+      // Como enviamos múltiplas mensagens, verificamos se alguma delas contém o texto de erro
+      const sendMessageCalls = mockBot.sendMessage.mock.calls;
+      let hasErrorMessage = false;
+
+      for (const call of sendMessageCalls) {
+        if (
+          call[1] &&
+          typeof call[1] === "string" &&
+          call[1].includes("Ocorreu um erro ao gerar seu PDF")
+        ) {
+          hasErrorMessage = true;
+          break;
+        }
+      }
+
+      expect(hasErrorMessage).toBe(true);
     });
 
     it("deve geração de PDF incluir opções sem emojis", async () => {

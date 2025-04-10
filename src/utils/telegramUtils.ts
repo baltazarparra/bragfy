@@ -61,22 +61,143 @@ export function splitLongMessage(
   const parts: string[] = [];
   let remaining = text;
 
-  while (remaining.length > 0) {
-    // Encontra um ponto adequado para dividir a mensagem (preferencialmente em uma quebra de linha)
-    let splitIndex = remaining.lastIndexOf("\n", maxLength);
-    if (splitIndex === -1 || splitIndex < maxLength / 2) {
-      // Se não encontrou uma quebra de linha, divide por espaço
-      splitIndex = remaining.lastIndexOf(" ", maxLength);
-    }
-    if (splitIndex === -1 || splitIndex < maxLength / 2) {
-      // Em último caso, divide exatamente no comprimento máximo
-      splitIndex = maxLength;
-    }
+  // Verifica se é um Brag Document
+  const isBragDocument =
+    text.includes("*BRAG DOCUMENT*") && text.includes("*ATIVIDADES*");
 
-    parts.push(remaining.substring(0, splitIndex));
-    remaining = remaining.substring(splitIndex).trim();
+  if (isBragDocument) {
+    console.log(
+      "[TELEGRAM] Detectado Brag Document, dividindo de forma inteligente"
+    );
+
+    // Divide o cabeçalho e as atividades
+    const headerEndIndex = text.indexOf("*ATIVIDADES*");
+    if (headerEndIndex > 0) {
+      // Captura todo o cabeçalho até ATIVIDADES inclusive
+      const activityHeaderPos = text.indexOf("\n", headerEndIndex);
+      const header = text.substring(0, activityHeaderPos + 1);
+
+      // Resto do documento após o cabeçalho
+      const activitiesSection = text.substring(activityHeaderPos + 1);
+
+      // Adiciona o cabeçalho como primeira parte se não for muito longo
+      if (header.length <= maxLength) {
+        parts.push(header);
+        remaining = activitiesSection;
+      } else {
+        // Cabeçalho muito longo (raro), usa divisão padrão
+        remaining = text;
+      }
+
+      // Divide a seção de atividades em blocos
+      if (parts.length > 0) {
+        // Se temos um cabeçalho separado
+        // Padrão de divisor entre atividades
+        const activityDividers = [
+          "\n· · · · · · · · · ·\n",
+          "\n_[0-9]{4}-[0-9]{2}-[0-9]{2}_\n"
+        ];
+
+        while (remaining.length > 0) {
+          if (remaining.length <= maxLength) {
+            parts.push(remaining);
+            break;
+          }
+
+          // Tenta encontrar um divisor de atividade antes do limite
+          let splitPos = -1;
+
+          for (const dividerPattern of activityDividers) {
+            // Encontra a última ocorrência do divisor antes do limite
+            const regex = new RegExp(dividerPattern, "g");
+            let match;
+            let lastPos = -1;
+
+            // Busca a última ocorrência antes do limite
+            while ((match = regex.exec(remaining)) !== null) {
+              if (match.index < maxLength) {
+                lastPos = match.index;
+              } else {
+                break;
+              }
+            }
+
+            if (lastPos > 0 && lastPos > splitPos) {
+              splitPos = lastPos;
+            }
+          }
+
+          // Se não encontrou divisor, tenta em uma quebra de linha
+          if (splitPos === -1) {
+            splitPos = remaining.lastIndexOf("\n", maxLength);
+          }
+
+          // Em último caso, corta no comprimento máximo
+          if (splitPos === -1 || splitPos < maxLength / 2) {
+            splitPos = maxLength;
+          }
+
+          // Verifica se estamos cortando no meio de uma formatação Markdown
+          let adjustedSplitPos = splitPos;
+          // Verifica asteriscos e sublinhados desbalanceados
+          const prefix = remaining.substring(0, adjustedSplitPos);
+          const asteriskCount = (prefix.match(/\*/g) || []).length;
+          const underscoreCount = (prefix.match(/_/g) || []).length;
+
+          if (asteriskCount % 2 !== 0 || underscoreCount % 2 !== 0) {
+            // Busca a última quebra de linha segura antes do ponto de corte
+            const safePos = remaining.lastIndexOf("\n", adjustedSplitPos - 50);
+            if (safePos > 0 && safePos > adjustedSplitPos / 2) {
+              adjustedSplitPos = safePos;
+            }
+          }
+
+          parts.push(remaining.substring(0, adjustedSplitPos));
+          remaining = remaining.substring(adjustedSplitPos).trim();
+
+          // Adiciona cabeçalho de continuação se não for a última parte
+          if (remaining.length > 0) {
+            remaining = "*ATIVIDADES (continuação)*\n" + remaining;
+          }
+        }
+      }
+    }
   }
 
+  // Se não conseguimos dividir como Brag Document ou não é um, usa divisão padrão
+  if (parts.length === 0) {
+    while (remaining.length > 0) {
+      // Encontra um ponto adequado para dividir a mensagem
+      let splitIndex = remaining.lastIndexOf("\n", maxLength);
+      if (splitIndex === -1 || splitIndex < maxLength / 2) {
+        // Se não encontrou uma quebra de linha, divide por espaço
+        splitIndex = remaining.lastIndexOf(" ", maxLength);
+      }
+      if (splitIndex === -1 || splitIndex < maxLength / 2) {
+        // Em último caso, divide exatamente no comprimento máximo
+        splitIndex = maxLength;
+      }
+
+      // Verifica se estamos cortando no meio de uma formatação Markdown
+      let adjustedSplitIndex = splitIndex;
+      const prefix = remaining.substring(0, adjustedSplitIndex);
+      const asteriskCount = (prefix.match(/\*/g) || []).length;
+      const underscoreCount = (prefix.match(/_/g) || []).length;
+
+      if (asteriskCount % 2 !== 0 || underscoreCount % 2 !== 0) {
+        // Busca por posição segura antes do ponto de corte
+        const safePos = remaining.lastIndexOf("\n", adjustedSplitIndex - 20);
+        if (safePos > 0 && safePos > adjustedSplitIndex / 2) {
+          adjustedSplitIndex = safePos;
+        }
+      }
+
+      parts.push(remaining.substring(0, adjustedSplitIndex));
+      remaining = remaining.substring(adjustedSplitIndex).trim();
+    }
+  }
+
+  console.log(`[TELEGRAM] Mensagem dividida em ${parts.length} partes`);
   return parts;
 }
 
@@ -166,7 +287,6 @@ export async function sendSafeMarkdown(
       }
     }
 
-    // Código existente continua aqui para o caso de sanitização bem-sucedida
     // Dividir mensagens longas
     const messageParts = splitLongMessage(sanitizedText);
 
@@ -180,15 +300,56 @@ export async function sendSafeMarkdown(
       );
       const messages: TelegramBot.Message[] = [];
 
-      for (const part of messageParts) {
+      // Verifica se é um Brag Document (para tratamento especial de botões inline)
+      const isBragDocument =
+        text.includes("*BRAG DOCUMENT*") && text.includes("*ATIVIDADES*");
+      const hasInlineKeyboard =
+        messageOptions.reply_markup &&
+        "inline_keyboard" in messageOptions.reply_markup &&
+        messageOptions.reply_markup.inline_keyboard.length > 0;
+
+      // Para cada parte da mensagem
+      for (let i = 0; i < messageParts.length; i++) {
+        const part = messageParts[i];
         try {
-          const message = await bot.sendMessage(chatId, part, messageOptions);
+          // Apenas a primeira parte mantém os botões inline
+          const partOptions = { ...messageOptions };
+
+          // Se não for a primeira parte e tiver botões, remove-os para as partes subsequentes
+          if (i > 0 && isBragDocument && hasInlineKeyboard) {
+            // Remove os botões inline, mas mantém outras opções
+            if (
+              partOptions.reply_markup &&
+              "inline_keyboard" in partOptions.reply_markup
+            ) {
+              delete partOptions.reply_markup;
+            }
+          }
+
+          // Adiciona um log para monitorar o tamanho da mensagem
+          console.log(
+            `[TELEGRAM] Enviando parte ${i + 1}/${messageParts.length} com ${part.length} caracteres`
+          );
+
+          const message = await bot.sendMessage(chatId, part, partOptions);
           messages.push(message);
         } catch (error) {
           console.error("[TELEGRAM] Erro ao enviar parte da mensagem:", error);
           // Tentar enviar sem formatação em caso de erro
           try {
             const plainOptions = { ...messageOptions };
+            delete plainOptions.parse_mode;
+
+            // Remove botões inline se não for a primeira parte
+            if (i > 0 && isBragDocument && hasInlineKeyboard) {
+              if (
+                plainOptions.reply_markup &&
+                "inline_keyboard" in plainOptions.reply_markup
+              ) {
+                delete plainOptions.reply_markup;
+              }
+            }
+
             const message = await bot.sendMessage(chatId, part, plainOptions);
             messages.push(message);
           } catch (plainError) {

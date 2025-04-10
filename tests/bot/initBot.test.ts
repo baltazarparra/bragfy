@@ -1,20 +1,40 @@
 import { initBot } from "../../src/bot";
 import TelegramBot from "node-telegram-bot-api";
+import * as userUtils from "../../src/utils/userUtils";
 
 // Mock TelegramBot
 jest.mock("node-telegram-bot-api");
+// Mock de utils
+jest.mock("../../src/utils/userUtils");
 
 describe("initBot", () => {
+  // Mock das funções de userUtils
+  const mockUserExists = jest.spyOn(userUtils, "userExists");
+  const mockGetUserByTelegramId = jest.spyOn(userUtils, "getUserByTelegramId");
+
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Configure o mock para retornar um usuário existente por padrão
+    mockUserExists.mockResolvedValue(true);
+    mockGetUserByTelegramId.mockResolvedValue({
+      id: 1,
+      telegramId: 456,
+      firstName: "Test",
+      lastName: null,
+      username: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
   });
 
   it("deve configurar handlers de mensagens corretamente", async () => {
     // Arrange
     const mockOn = jest.fn();
     const mockOnText = jest.fn();
-    const mockSendMessage = jest.fn().mockResolvedValue({});
+    const mockSendMessage = jest.fn().mockResolvedValue({ message_id: 123 });
     const mockSendChatAction = jest.fn().mockResolvedValue(true);
+    const mockEditMessageText = jest.fn().mockResolvedValue({});
 
     // Mock do construtor do TelegramBot
     (TelegramBot as jest.MockedClass<typeof TelegramBot>).mockImplementation(
@@ -23,7 +43,8 @@ describe("initBot", () => {
           on: mockOn,
           onText: mockOnText,
           sendMessage: mockSendMessage,
-          sendChatAction: mockSendChatAction
+          sendChatAction: mockSendChatAction,
+          editMessageText: mockEditMessageText
         }) as unknown as TelegramBot
     );
 
@@ -46,7 +67,8 @@ describe("initBot", () => {
     // Simula uma mensagem normal
     const mockMsg = {
       chat: { id: 123 },
-      text: "mensagem normal"
+      text: "mensagem normal",
+      from: { id: 456, first_name: "Test", is_bot: false }
     };
 
     // Dispara o handler (agora assíncrono)
@@ -55,8 +77,28 @@ describe("initBot", () => {
     // Verifica se enviou a ação de digitação
     expect(mockSendChatAction).toHaveBeenCalledWith(123, "typing");
 
-    // Verifica se enviou a mensagem de loader
+    // Verifica se enviou a mensagem de loader (primeira interação)
     expect(mockSendMessage).toHaveBeenCalledWith(
+      123,
+      "Ainda estou acordando..."
+    );
+
+    // Verifica se tentou chamar editMessageText para a animação
+    expect(mockEditMessageText).toHaveBeenCalled();
+
+    // Reseta os mocks para o segundo teste
+    mockSendChatAction.mockClear();
+    mockSendMessage.mockClear();
+    mockEditMessageText.mockClear();
+
+    // Simula uma segunda mensagem do mesmo usuário
+    await messageHandler(mockMsg);
+
+    // Verifica se enviou a ação de digitação novamente
+    expect(mockSendChatAction).toHaveBeenCalledWith(123, "typing");
+
+    // Verifica que NÃO enviou a mensagem de loader na segunda interação
+    expect(mockSendMessage).not.toHaveBeenCalledWith(
       123,
       "Ainda estou acordando..."
     );
@@ -64,7 +106,8 @@ describe("initBot", () => {
     // Simula um comando /start
     const mockStartMsg = {
       chat: { id: 123 },
-      text: "/start"
+      text: "/start",
+      from: { id: 456, first_name: "Test", is_bot: false }
     };
 
     // Reseta os mocks

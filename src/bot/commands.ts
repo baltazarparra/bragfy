@@ -35,6 +35,9 @@ interface PendingActivityData {
   impact?: string;
 }
 
+// Mapeia IDs de mensagens que devem parar animação (para coordenar exclusão e animação)
+const messagesToStopAnimation = new Set<string>();
+
 // Mapeia IDs de mensagem para atividades pendentes
 export const pendingActivities = new Map<number, PendingActivityData>();
 
@@ -529,27 +532,117 @@ export async function createLoadingAnimation(
   baseText: string,
   iterations: number = 3
 ): Promise<void> {
+  // Verificação defensiva para entrada inválida
+  if (!messageId || messageId <= 0 || !chatId || chatId === 0) {
+    console.warn(
+      `[ANIMATION] Parâmetros inválidos para animação: chatId=${chatId}, messageId=${messageId}`
+    );
+    return;
+  }
+
   const dots = [".", "..", "..."];
   const delay = 700; // ms entre atualizações
+  let messageExists = true;
 
-  for (let i = 0; i < iterations; i++) {
+  // Chave única para identificar esta mensagem
+  const messageKey = `${chatId}:${messageId}`;
+
+  // Lista abrangente de padrões de erro que indicam que a mensagem não existe ou não pode ser editada
+  const invalidMessagePatterns = [
+    "message to edit not found",
+    "MESSAGE_ID_INVALID",
+    "message can't be edited",
+    "message is not modified",
+    "Bad Request",
+    "message identifier is not specified",
+    "message to delete not found",
+    "chat not found",
+    "CHAT_NOT_FOUND"
+  ];
+
+  // Verifica se a mensagem existe antes de iniciar a animação
+  try {
+    // Verifica se a mensagem já foi marcada para exclusão
+    if (messagesToStopAnimation.has(messageKey)) {
+      console.log(
+        `[ANIMATION] Mensagem ${messageId} já está marcada para exclusão, não iniciando animação`
+      );
+      return;
+    }
+
+    // Tenta fazer uma edição simples para verificar se a mensagem existe
+    await bot.editMessageText(`${baseText}`, {
+      chat_id: chatId,
+      message_id: messageId
+    });
+  } catch (error) {
+    const errorMessage = String(error);
+
+    // Verifica se o erro indica que a mensagem não existe ou não pode ser editada
+    if (
+      invalidMessagePatterns.some((pattern) => errorMessage.includes(pattern))
+    ) {
+      console.warn(
+        `[ANIMATION] Mensagem ${messageId} não existe ou não pode ser editada: ${error}`
+      );
+      return; // Encerra imediatamente
+    } else {
+      // Outros erros de inicialização são registrados mas tentamos continuar
+      console.warn(
+        `[ANIMATION] Erro ao verificar mensagem de animação: ${error}`
+      );
+    }
+  }
+
+  // Continua com a animação apenas se a verificação inicial passou
+  for (let i = 0; i < iterations && messageExists; i++) {
     for (const dot of dots) {
+      // Verifica se a mensagem foi marcada para exclusão antes de cada tentativa de edição
+      if (messagesToStopAnimation.has(messageKey)) {
+        console.log(
+          `[ANIMATION] Mensagem ${messageId} marcada para exclusão, parando animação`
+        );
+        // Remove da lista após processar
+        messagesToStopAnimation.delete(messageKey);
+        return;
+      }
+
       try {
         await bot.editMessageText(`${baseText}${dot}`, {
           chat_id: chatId,
           message_id: messageId
         });
+
+        // Espera entre atualizações
         await new Promise((resolve) => {
           // Use .unref() para evitar que o timer bloqueie o encerramento do processo
           setTimeout(resolve, delay).unref();
         });
       } catch (error) {
-        console.warn(
-          `[ANIMATION] Erro ao atualizar animação de carregamento: ${error}`
-        );
-        // Continua mesmo com erro
+        const errorMessage = String(error);
+
+        // Verifica se o erro indica que a mensagem não existe ou não pode ser editada
+        if (
+          invalidMessagePatterns.some((pattern) =>
+            errorMessage.includes(pattern)
+          )
+        ) {
+          console.warn(`[ANIMATION] Interrompendo animação: ${error}`);
+          messageExists = false;
+          break; // Sai do loop interno e não tenta mais edições
+        } else {
+          // Para outros erros, apenas loga e continua
+          console.warn(
+            `[ANIMATION] Erro ao atualizar animação de carregamento: ${error}`
+          );
+        }
       }
     }
+  }
+
+  // Limpa as marcações quando a animação termina normalmente
+  if (messagesToStopAnimation.has(messageKey)) {
+    messagesToStopAnimation.delete(messageKey);
   }
 }
 
@@ -660,6 +753,13 @@ export const handleCallbackQuery = async (
 
           // Remove a mensagem de carregamento
           try {
+            // Sinaliza para a animação que vamos remover esta mensagem
+            const messageKey = `${chatId}:${loadingMsgId}`;
+            messagesToStopAnimation.add(messageKey);
+
+            // Pequena pausa para ter certeza que a animação verá o sinal
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
             await bot.deleteMessage(chatId, loadingMsgId);
             console.log(
               `[DEBUG] Mensagem de carregamento removida para usuário ${telegramUser.id}`
@@ -668,14 +768,7 @@ export const handleCallbackQuery = async (
             console.warn(
               `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
             );
-            // Se não puder deletar, tenta editar para informar que não há atividades
-            await bot.editMessageText(
-              `Hmm, não encontrei nenhuma atividade registrada nos últimos ${period} dia(s).\n\nQue tal registrar algumas conquistas agora?`,
-              {
-                chat_id: chatId,
-                message_id: loadingMsgId
-              }
-            );
+            // Continua mesmo se não puder deletar
           }
 
           // Envia nova mensagem informando que não há atividades
@@ -748,15 +841,18 @@ export const handleCallbackQuery = async (
 
         // Remove a mensagem de carregamento
         try {
+          // Sinaliza para a animação que vamos remover esta mensagem
+          const messageKey = `${chatId}:${loadingMsgId}`;
+          messagesToStopAnimation.add(messageKey);
+
+          // Pequena pausa para ter certeza que a animação verá o sinal
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
           await bot.deleteMessage(chatId, loadingMsgId);
-          console.log(
-            `[DEBUG] Mensagem de carregamento removida para usuário ${telegramUser.id}`
-          );
         } catch (deleteError) {
           console.warn(
             `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
           );
-          // Continua mesmo se não puder deletar
         }
 
         // Log simplificado do documento para debug (apenas primeiros caracteres)
@@ -773,14 +869,23 @@ export const handleCallbackQuery = async (
             }
           };
 
-          // ENVIA COMO NOVA MENSAGEM (não edita a mensagem de carregamento)
-          const sentDocument = await bot.sendMessage(chatId, bragDocument, {
-            parse_mode: "Markdown",
-            reply_markup: inlineKeyboard.reply_markup
-          });
+          // ENVIA COMO NOVA MENSAGEM usando sendSafeMarkdown (mais seguro para documentos longos)
+          const sentDocument = await sendSafeMarkdown(
+            bot,
+            chatId,
+            bragDocument,
+            {
+              parse_mode: "Markdown",
+              reply_markup: inlineKeyboard.reply_markup
+            }
+          );
 
           console.log(
-            `[DEBUG] Brag Document enviado como nova mensagem ID: ${sentDocument.message_id}`
+            `[DEBUG] Brag Document enviado como nova mensagem ID: ${
+              Array.isArray(sentDocument)
+                ? sentDocument[0].message_id
+                : sentDocument.message_id
+            }`
           );
 
           // Envia um sticker para brag document
@@ -829,10 +934,12 @@ export const handleCallbackQuery = async (
           console.error("[ERROR] Erro ao renderizar Markdown:", markdownError);
 
           // Tenta novamente sem formatação Markdown, enviando como nova mensagem
-          await bot.sendMessage(
+          await sendSafeMarkdown(
+            bot,
             chatId,
             "Seu Brag Document foi gerado, mas ocorreu um erro de formatação. Mostrando versão simplificada...\n\n" +
-              bragDocument.replace(/[*_|]/g, "")
+              bragDocument.replace(/[*_|]/g, ""),
+            { parse_mode: undefined }
           );
 
           bot.answerCallbackQuery(callbackQuery.id, {
@@ -949,14 +1056,24 @@ export const handleCallbackQuery = async (
         );
       } catch (error) {
         console.error("[ERROR] Erro ao gerar/enviar PDF:", error);
-        bot.sendMessage(
+        await sendSafeMarkdown(
+          bot,
           chatId,
-          "Ocorreu um erro ao gerar seu PDF. Por favor, tente novamente mais tarde."
+          "Ocorreu um erro ao gerar seu PDF. Por favor, tente novamente mais tarde.",
+          { parse_mode: "Markdown" }
         );
+        return; // Saímos aqui para não enviar o sticker
       }
 
       // Remove a mensagem de carregamento após a conclusão
       try {
+        // Sinaliza para a animação que vamos remover esta mensagem
+        const messageKey = `${chatId}:${loadingMsg.message_id}`;
+        messagesToStopAnimation.add(messageKey);
+
+        // Pequena pausa para ter certeza que a animação verá o sinal
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         await bot.deleteMessage(chatId, loadingMsg.message_id);
       } catch (deleteError) {
         console.warn(
@@ -1577,28 +1694,63 @@ export const handleCallbackQuery = async (
         text: "Iniciando análise de perfil..."
       });
 
-      // Informa ao usuário que a análise está em andamento
-      const loadingMessage = await bot.sendMessage(
-        chatId,
-        "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
-      );
-
-      // Inicia animação de carregamento
-      if (loadingMessage.message_id) {
-        createLoadingAnimation(
-          bot,
-          chatId,
-          loadingMessage.message_id,
-          "⏳ Analisando seu perfil profissional"
-        );
-      }
-
       try {
+        // Informa ao usuário que a análise está em andamento
+        let loadingMessageId: number | null = null;
+        try {
+          const loadingMessage = await bot.sendMessage(
+            chatId,
+            "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
+          );
+
+          loadingMessageId = loadingMessage.message_id;
+
+          // Inicia animação de carregamento apenas se a mensagem foi enviada com sucesso
+          if (loadingMessageId) {
+            // Executa a animação em um contexto protegido que não afetará o fluxo principal
+            createLoadingAnimation(
+              bot,
+              chatId,
+              loadingMessageId,
+              "⏳ Analisando seu perfil profissional"
+            ).catch((animError) => {
+              console.warn(
+                `[ANIMATION] Erro na animação de análise: ${animError}`
+              );
+              // Não propaga o erro para não interromper o fluxo principal
+            });
+          }
+        } catch (msgError) {
+          console.warn(
+            `[ANALYZE] Erro ao enviar mensagem de carregamento: ${msgError}`
+          );
+          // Continua mesmo sem mensagem de carregamento
+        }
+
         // Formata as atividades para a chamada da API
         const activitiesText = formatActivitiesForPrompt(activities);
 
         // Chama a API para análise
         const analysisResult = await analyzeProfileWithLLM(activitiesText);
+
+        // Tenta remover a mensagem de carregamento de forma segura
+        if (loadingMessageId) {
+          try {
+            // Sinaliza para a animação que vamos remover esta mensagem
+            const messageKey = `${chatId}:${loadingMessageId}`;
+            messagesToStopAnimation.add(messageKey);
+
+            // Pequena pausa para ter certeza que a animação verá o sinal
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
+            await bot.deleteMessage(chatId, loadingMessageId);
+          } catch (deleteError) {
+            // Apenas loga o erro, não interrompe o fluxo
+            console.warn(
+              `[WARN] Não foi possível remover mensagem de carregamento da análise: ${deleteError}`
+            );
+          }
+        }
 
         if (analysisResult.success) {
           // Usa a função de sanitização para enviar a análise
@@ -1616,15 +1768,6 @@ export const handleCallbackQuery = async (
 
           console.error(
             `[ERROR] Falha na análise de perfil para usuário ${telegramUser.id}: ${analysisResult.result}`
-          );
-        }
-
-        // Remove a mensagem de carregamento
-        try {
-          await bot.deleteMessage(chatId, loadingMessage.message_id);
-        } catch (deleteError) {
-          console.warn(
-            `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
           );
         }
       } catch (error) {
@@ -1732,11 +1875,13 @@ async function generateAndSendPDF(
         contentType: "application/pdf"
       });
     } else {
-      await bot.sendMessage(
+      await sendSafeMarkdown(
+        bot,
         chatId,
-        "Não foi possível gerar o PDF neste momento. Por favor, tente novamente mais tarde.",
+        "Ocorreu um erro ao gerar seu PDF. Por favor, tente novamente mais tarde.",
         { parse_mode: "Markdown" }
       );
+      return; // Saímos aqui para não enviar o sticker
     }
 
     // Envia um sticker para brag document/PDF
@@ -1745,7 +1890,15 @@ async function generateAndSendPDF(
     console.log(`PDF enviado com sucesso para o usuário ${user.id}`);
   } catch (error) {
     console.error("[ERROR] Erro em generateAndSendPDF:", error);
-    throw error; // Propaga o erro para tratamento no chamador
+    // Não relança a exceção, apenas trata e envia mensagem ao usuário
+
+    // Envia uma mensagem de erro amigável ao usuário
+    await sendSafeMarkdown(
+      bot,
+      chatId,
+      "Ocorreu um erro ao gerar seu PDF. Por favor, tente novamente mais tarde.",
+      { parse_mode: "Markdown" }
+    );
   }
 }
 

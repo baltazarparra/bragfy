@@ -121,7 +121,7 @@ describe("llmUtils", () => {
       );
       expect(systemMessage).toBeDefined();
       expect(systemMessage.content).toContain(
-        "You are a seasoned technology executive"
+        "Você é um executivo de tecnologia experiente"
       );
 
       // Verifica o conteúdo do prompt do usuário
@@ -166,6 +166,7 @@ describe("llmUtils", () => {
 
       // Verifica os resultados
       expect(result.success).toBe(false);
+      expect(result.result).toContain("Falha na análise");
       expect(result.result).toContain("LLM-ERR-401");
     });
 
@@ -192,6 +193,7 @@ describe("llmUtils", () => {
 
       // Verifica os resultados
       expect(result.success).toBe(false);
+      expect(result.result).toContain("Falha na análise");
       expect(result.result).toContain("LLM-ERR-500");
     });
   });
@@ -202,14 +204,14 @@ describe("llmUtils", () => {
       const mockResponse1 = {
         ok: true,
         json: async () => ({
-          choices: [{ message: { content: "First analysis result" } }]
+          choices: [{ message: { content: "Resultado da primeira análise" } }]
         })
       };
 
       const mockResponse2 = {
         ok: true,
         json: async () => ({
-          choices: [{ message: { content: "Second analysis result" } }]
+          choices: [{ message: { content: "Resultado da segunda análise" } }]
         })
       };
 
@@ -227,10 +229,10 @@ describe("llmUtils", () => {
 
       // Verify both calls were successful
       expect(result1.success).toBe(true);
-      expect(result1.result).toBe("First analysis result");
+      expect(result1.result).toBe("Resultado da primeira análise.");
 
       expect(result2.success).toBe(true);
-      expect(result2.result).toBe("Second analysis result");
+      expect(result2.result).toBe("Resultado da segunda análise.");
 
       // Verify fetch was called twice with correct headers both times
       expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -278,6 +280,7 @@ describe("llmUtils", () => {
 
       // Verify error handling
       expect(result.success).toBe(false);
+      expect(result.result).toContain("Falha na análise");
       expect(result.result).toContain("LLM-ERR-401");
 
       // Verify fetch was called with the correct URL and headers
@@ -291,6 +294,136 @@ describe("llmUtils", () => {
           })
         })
       );
+    });
+  });
+
+  describe("Sanitização de respostas da análise", () => {
+    it("deve sanitizar corretamente respostas com formatação incompleta de Telegram", async () => {
+      // Mock da resposta do fetch com formatação de Telegram incorreta
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: "Texto com *negrito incompleto e _itálico incompleto"
+              }
+            }
+          ]
+        })
+      };
+
+      jest
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockResponse as unknown as Response);
+
+      // Executa a função
+      const result = await analyzeProfileWithLLM("teste sanitização");
+
+      // Verifica que os marcadores incompletos foram corrigidos
+      expect(result.success).toBe(true);
+      expect(result.result).not.toContain("*negrito incompleto");
+      expect(result.result).not.toContain("_itálico incompleto");
+      // O texto deve ter sido mantido, removendo apenas os marcadores problemáticos
+      expect(result.result).toContain(
+        "Texto com negrito incompleto e itálico incompleto"
+      );
+    });
+
+    it("deve adicionar ponto final a textos que terminam sem pontuação", async () => {
+      // Mock da resposta do fetch sem pontuação final
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: "Análise sem pontuação final" } }]
+        })
+      };
+
+      jest
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockResponse as unknown as Response);
+
+      // Executa a função
+      const result = await analyzeProfileWithLLM("teste sanitização");
+
+      // Verifica que a pontuação final foi adicionada
+      expect(result.success).toBe(true);
+      expect(result.result).toBe("Análise sem pontuação final.");
+    });
+
+    it("deve converter vírgulas finais em pontos finais", async () => {
+      // Mock da resposta do fetch com vírgula no final
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: "Análise com vírgula no final," } }]
+        })
+      };
+
+      jest
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockResponse as unknown as Response);
+
+      // Executa a função
+      const result = await analyzeProfileWithLLM("teste sanitização");
+
+      // Verifica que a vírgula final foi convertida em ponto
+      expect(result.success).toBe(true);
+      expect(result.result).toBe("Análise com vírgula no final.");
+    });
+
+    it("deve corrigir parênteses desbalanceados", async () => {
+      // Mock da resposta do fetch com parênteses desbalanceados
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: "Texto com (parêntese aberto e não fechado" }
+            }
+          ]
+        })
+      };
+
+      jest
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockResponse as unknown as Response);
+
+      // Executa a função
+      const result = await analyzeProfileWithLLM("teste sanitização");
+
+      // Verifica que o parêntese foi fechado
+      expect(result.success).toBe(true);
+      expect(result.result).toBe("Texto com (parêntese aberto e não fechado.)");
+    });
+
+    it("deve remover quebras de linha e espaços extras", async () => {
+      // Mock da resposta do fetch com quebras de linha e espaços extras
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: "Linha 1\nLinha 2\n\nLinha 3    com    espaços"
+              }
+            }
+          ]
+        })
+      };
+
+      jest
+        .spyOn(global, "fetch")
+        .mockResolvedValueOnce(mockResponse as unknown as Response);
+
+      // Executa a função
+      const result = await analyzeProfileWithLLM("teste sanitização");
+
+      // Verifica que as quebras de linha e espaços extras foram removidos
+      expect(result.success).toBe(true);
+      expect(result.result).toBe("Linha 1 Linha 2 Linha 3 com espaços.");
+      expect(result.result).not.toContain("\n");
+      expect(result.result).not.toMatch(/\s{2,}/);
     });
   });
 });
