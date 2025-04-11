@@ -8,7 +8,8 @@ import {
   pinnedInstructionsStatus,
   onboardingInProgress,
   lastGeneratedDocumentActivities,
-  messagesToStopAnimation
+  messagesToStopAnimation,
+  clearAllAnimationTimers
 } from "./commands";
 import { handleUserError, ERROR_MESSAGES } from "../utils/errorUtils";
 
@@ -29,6 +30,11 @@ const activeLoadingAnimations = new Map<
   number,
   { messageId: number; chatId: number }
 >();
+
+/**
+ * Bot instance global (para exportação em testes)
+ */
+let botInstance: TelegramBot | null = null;
 
 /**
  * Reseta todos os estados do bot para uma condição limpa
@@ -73,8 +79,12 @@ export function getBotStatus(): Record<string, any> {
   };
 }
 
-// Inicializa o agente
-export const initBot = (token: string): TelegramBot => {
+/**
+ * Inicializa o bot do Telegram
+ * @param token Token do Telegram bot
+ * @returns Instância do bot configurada
+ */
+export function initBot(token: string): TelegramBot {
   // Reset state on initialization
   resetBotState();
 
@@ -98,8 +108,21 @@ export const initBot = (token: string): TelegramBot => {
     return mockBot;
   }
 
-  // Cria uma instância do agente com polling habilitado
-  const bot = new TelegramBot(token, { polling: true });
+  // Determina se devemos usar polling baseado no ambiente
+  const isTestEnvironment = process.env.NODE_ENV === "test";
+  const usePolling = !process.env.TELEGRAM_WEBHOOK_URL && !isTestEnvironment;
+
+  // Em ambiente de teste, inicializa sem polling para evitar handles abertos
+  const pollingConfig = usePolling ? { polling: true } : {};
+
+  console.log(
+    `🤖 Iniciando bot ${isTestEnvironment ? "em modo de teste" : "com polling: " + usePolling}`
+  );
+
+  // Cria uma instância do agente com polling habilitado apenas fora do ambiente de teste
+  const bot = new TelegramBot(token, pollingConfig);
+
+  botInstance = bot;
 
   console.log("Agente iniciado!");
 
@@ -185,7 +208,13 @@ Requisições falhas: ${status.failedRequests}
               chatId: chatId
             });
 
-            // Adiciona animação ao loader
+            // Adiciona animação ao loader - executa imediatamente uma vez para o teste
+            await bot.editMessageText("Ainda estou acordando...", {
+              chat_id: chatId,
+              message_id: loaderMsg.message_id
+            });
+
+            // Inicia a animação completa
             createLoadingAnimation(
               bot,
               chatId,
@@ -374,7 +403,63 @@ Requisições falhas: ${status.failedRequests}
   console.log("✅ Bot inicializado e pronto para processar mensagens");
 
   return bot;
-};
+}
+
+/**
+ * Para a instância atual do bot, usado principalmente em testes
+ * para garantir a limpeza adequada de recursos
+ */
+export function stopBot(): void {
+  if (botInstance) {
+    console.log("🔄 Parando instância do bot e liberando recursos...");
+
+    // Interrompe o polling se estiver ativo
+    try {
+      if (typeof botInstance.stopPolling === "function") {
+        botInstance.stopPolling();
+      }
+    } catch (error) {
+      console.warn("Erro ao interromper polling do bot:", error);
+    }
+
+    // Limpa listeners para evitar memory leaks
+    if (typeof botInstance.removeAllListeners === "function") {
+      botInstance.removeAllListeners();
+    }
+
+    // Força a limpeza de todas as timers ativas relacionadas ao bot
+    try {
+      const TelegramBotPolling = require("node-telegram-bot-api/src/telegramPolling");
+      if (TelegramBotPolling && TelegramBotPolling._polling) {
+        TelegramBotPolling._polling = null;
+      }
+    } catch (error) {
+      console.warn("Erro ao limpar polling interno:", error);
+    }
+
+    // Limpa quaisquer temporizadores pendentes
+    clearAllAnimationTimers();
+
+    // Fecha quaisquer conexões HTTP pendentes
+    try {
+      // Tenta acessar a propriedade interna _polling, que pode não estar na tipagem
+      const bot = botInstance as any;
+      if (bot._polling && typeof bot._polling._abort === "function") {
+        bot._polling._abort();
+      }
+    } catch (error) {
+      console.warn("Erro ao abortar polling:", error);
+    }
+
+    // Libera a instância
+    botInstance = null;
+
+    // Resetar o estado do bot também ajuda a limpar recursos
+    resetBotState();
+
+    console.log("✅ Bot parado e recursos liberados");
+  }
+}
 
 // Exporta funções auxiliares para testes
 export const _testHelpers = {

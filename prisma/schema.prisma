@@ -22,6 +22,7 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   activities  Activity[]
+  analyses    UserAnalysis[]
 }
 
 model Activity {
@@ -35,4 +36,16 @@ model Activity {
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model UserAnalysis {
+  id         String   @id @default(cuid())
+  userId     Int
+  telegramId Int
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([telegramId])
 }

@@ -1,10 +1,11 @@
-import { Activity } from "../db/client";
+import { Activity, UserAnalysis } from "../db/client";
+import { getUserAnalyses } from "./userUtils";
 
 /**
  * Modelos LLM disponíveis para uso com OpenRouter
  */
 const LLM_MODELS = {
-  PRIMARY: "meta-llama/llama-3-8b-instruct"
+  PRIMARY: process.env.LLM_MODEL || "meta-llama/llama-3-8b-instruct"
 };
 
 /**
@@ -27,6 +28,8 @@ interface OpenRouterResponse {
  * @returns String formatada com as atividades
  */
 export const formatActivitiesForPrompt = (activities: Activity[]): string => {
+  if (!activities || activities.length === 0) return "";
+
   return activities
     .map((activity) => {
       // Formata a data para YYYY-MM-DD
@@ -36,6 +39,25 @@ export const formatActivitiesForPrompt = (activities: Activity[]): string => {
       return `• [${formattedDate}] ${activity.content}`;
     })
     .join("\n");
+};
+
+/**
+ * Formata as análises anteriores do usuário para o prompt
+ * @param analyses Lista de análises anteriores
+ * @returns Texto formatado para incluir no prompt
+ */
+const formatPreviousAnalysesForPrompt = (analyses: UserAnalysis[]): string => {
+  if (!analyses || analyses.length === 0) return "";
+
+  const analysesText = analyses
+    .map((analysis, index) => {
+      const date = new Date(analysis.createdAt);
+      const formattedDate = date.toISOString().split("T")[0];
+      return `${index + 1}. [${formattedDate}] ${analysis.content}`;
+    })
+    .join("\n\n");
+
+  return `O usuário recebeu as seguintes análises anteriores:\n${analysesText}\n\n`;
 };
 
 /**
@@ -541,15 +563,48 @@ const balanceParentheses = (text: string): string => {
  * Envia uma solicitação para a API OpenRouter e retorna a análise do perfil
  *
  * @param activitiesText Texto com as atividades formatadas
+ * @param userId ID do usuário no banco de dados (opcional)
  * @returns Resultado da análise ou mensagem de erro
  */
 export const analyzeProfileWithLLM = async (
-  activitiesText: string
+  activitiesText: string,
+  userId?: number
 ): Promise<{ success: boolean; result: string }> => {
+  // Verifica se está em ambiente de teste (Jest define process.env.NODE_ENV como 'test')
+  const isTestEnvironment =
+    process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined;
+
   try {
     const apiKey = process.env.OPENROUTER_API_KEY;
 
-    console.log("[LLM] Sending request...");
+    if (!isTestEnvironment) {
+      console.log("[LLM] Sending request...");
+    }
+
+    // Busca análises anteriores se o userId for fornecido
+    let previousAnalysesText = "";
+    if (userId) {
+      try {
+        const previousAnalyses = await getUserAnalyses(userId);
+        previousAnalysesText =
+          formatPreviousAnalysesForPrompt(previousAnalyses);
+        if (!isTestEnvironment) {
+          console.log(
+            `[LLM] Incluindo ${previousAnalyses.length} análises anteriores no prompt`
+          );
+        }
+      } catch (error) {
+        if (!isTestEnvironment) {
+          console.warn("[LLM] Erro ao buscar análises anteriores:", error);
+        }
+        // Continua sem as análises anteriores em caso de erro
+      }
+    }
+
+    // Constrói o prompt completo
+    const userPrompt = previousAnalysesText
+      ? `${previousAnalysesText}Abaixo estão as atividades atuais do usuário para este ciclo:\n${activitiesText}`
+      : activitiesText;
 
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -567,11 +622,11 @@ export const analyzeProfileWithLLM = async (
             {
               role: "system",
               content:
-                'Você é um executivo de tecnologia experiente. Com base no registro de atividades abaixo, analise o comportamento profissional do usuário. Escreva diretamente para o usuário usando a segunda pessoa ("você"). IMPORTANTE: Responda SEMPRE em português brasileiro, sem exceções.\n\nDestaque padrões comportamentais, atitude gerencial, potenciais pontos cegos e sugestões concretas para melhoria. Avalie também a natureza do ciclo atual com base nos níveis de urgência e impacto relatados para cada atividade.\n\nOrientações específicas:\n- Sua resposta DEVE ter no máximo 200 tokens (cerca de 3-4 linhas de texto).\n- IMPORTANTE: Complete todas as frases. Nunca termine sua resposta no meio de uma sentença.\n- Formate sua resposta como um ÚNICO parágrafo coeso, sem quebras de linha ou bullets.\n- Use um tom sarcástico e direto, como um tech lead experiente que é parte mentor, parte crítico.\n- Você pode usar *negrito* e _itálico_ para ênfase visual MODERADA (1-2 vezes no máximo), como faria em uma mensagem do Telegram.\n- O texto deve parecer conversacional e humano, não robótico ou genérico.\n- Priorize as observações mais relevantes e impactantes sobre o trabalho do usuário.\n- Use frases completas e bem construídas, evitando cortes abruptos.\n- Seja breve e direto, sem introduções desnecessárias ou floreios.\n- Use um tom que pareça: "é, isso foi decente... mas vamos falar do que realmente importa."\n- Evite elogios genéricos. Foque em destacar o que realmente se sobressaiu ou o que poderia ter sido melhor — com um tom construtivo mas seco.\n- Se o usuário enviar múltiplas atividades, sintetize padrões ou contradições, sem repetir item por item.\n- Nunca use palavras em inglês ou inclua traduções.\n- Termine sua análise com uma conclusão clara ou uma sugestão acionável.\n\nPROIBIÇÕES ABSOLUTAS:\n- NÃO use sujeitos redundantes como "Você, você está..." ou repetição desnecessária de palavras.\n- NÃO inclua expressões não-verbais como *sorri*, *suspira*, *pisca*, etc. Isso quebra totalmente o tom profissional.\n- NÃO use linguagem artificial, excessivamente sentimental ou estilo bate-papo.\n- NÃO use interjeições como "hmm", "ah", "ugh" ou similares.\n- NÃO use emoji ou representações textuais de emoji.\n- EVITE o uso de parênteses para comentários pessoais ou apartes informais.\n\nSeja sincero, direto e impactante, mesmo dentro do limite de 200 tokens.'
+                'Você é um executivo de tecnologia experiente. Com base no registro de atividades abaixo, analise o comportamento profissional do usuário. Escreva diretamente para o usuário usando a segunda pessoa ("você"). IMPORTANTE: Responda SEMPRE em português brasileiro, sem exceções.\n\nDestaque padrões comportamentais, atitude gerencial, potenciais pontos cegos e sugestões concretas para melhoria. Avalie também a natureza do ciclo atual com base nos níveis de urgência e impacto relatados para cada atividade.\n\nSe houver análises anteriores disponíveis, considere-as para oferecer uma visão evolutiva do perfil profissional, mas mantenha o foco nas atividades atuais.\n\nOrientações específicas:\n- Sua resposta DEVE ter no máximo 200 tokens (cerca de 3-4 linhas de texto).\n- IMPORTANTE: Complete todas as frases. Nunca termine sua resposta no meio de uma sentença.\n- Formate sua resposta como um ÚNICO parágrafo coeso, sem quebras de linha ou bullets.\n- Use um tom sarcástico e direto, como um tech lead experiente que é parte mentor, parte crítico.\n- Você pode usar *negrito* e _itálico_ para ênfase visual MODERADA (1-2 vezes no máximo), como faria em uma mensagem do Telegram.\n- O texto deve parecer conversacional e humano, não robótico ou genérico.\n- Priorize as observações mais relevantes e impactantes sobre o trabalho do usuário.\n- Use frases completas e bem construídas, evitando cortes abruptos.\n- Seja breve e direto, sem introduções desnecessárias ou floreios.\n- Use um tom que pareça: "é, isso foi decente... mas vamos falar do que realmente importa."\n- Evite elogios genéricos. Foque em destacar o que realmente se sobressaiu ou o que poderia ter sido melhor — com um tom construtivo mas seco.\n- Se o usuário enviar múltiplas atividades, sintetize padrões ou contradições, sem repetir item por item.\n- Nunca use palavras em inglês ou inclua traduções.\n- Termine sua análise com uma conclusão clara ou uma sugestão acionável.\n\nPROIBIÇÕES ABSOLUTAS:\n- NÃO use sujeitos redundantes como "Você, você está..." ou repetição desnecessária de palavras.\n- NÃO inclua expressões não-verbais como *sorri*, *suspira*, *pisca*, etc. Isso quebra totalmente o tom profissional.\n- NÃO use linguagem artificial, excessivamente sentimental ou estilo bate-papo.\n- NÃO use interjeições como "hmm", "ah", "ugh" ou similares.\n- NÃO use emoji ou representações textuais de emoji.\n- EVITE o uso de parênteses para comentários pessoais ou apartes informais.\n\nSeja sincero, direto e impactante, mesmo dentro do limite de 200 tokens.'
             },
             {
               role: "user",
-              content: activitiesText
+              content: userPrompt
             }
           ],
           max_tokens: 200
@@ -579,15 +634,19 @@ export const analyzeProfileWithLLM = async (
       }
     );
 
-    console.log("[LLM] Response received");
+    if (!isTestEnvironment) {
+      console.log("[LLM] Response received");
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error(`[LLM] Error ${response.status}: ${response.statusText}`);
-      console.error(
-        "[LLM] Error details:",
-        errorData.error?.message || "Unknown error"
-      );
+      if (!isTestEnvironment) {
+        console.error(`[LLM] Error ${response.status}: ${response.statusText}`);
+        console.error(
+          "[LLM] Error details:",
+          errorData.error?.message || "Unknown error"
+        );
+      }
 
       return {
         success: false,
@@ -599,17 +658,14 @@ export const analyzeProfileWithLLM = async (
     const analysisContent = data.choices[0]?.message?.content;
 
     if (!analysisContent) {
-      console.error("[LLM] Invalid response from API:", data);
+      if (!isTestEnvironment) {
+        console.error("[LLM] Invalid response from API:", data);
+      }
       return {
         success: false,
         result: "Falha na análise. Tente novamente mais tarde. (LLM-ERR)"
       };
     }
-
-    // Verifica se está em ambiente de teste (Jest define process.env.NODE_ENV como 'test')
-    const isTestEnvironment =
-      process.env.NODE_ENV === "test" ||
-      process.env.JEST_WORKER_ID !== undefined;
 
     // Sanitiza a resposta antes de retorná-la (sem formatação Markdown em testes)
     const sanitizedContent = sanitizeAnalysisResponse(
@@ -617,14 +673,18 @@ export const analyzeProfileWithLLM = async (
       !isTestEnvironment
     );
 
-    console.log("[LLM] Analysis sanitized and ready to send");
+    if (!isTestEnvironment) {
+      console.log("[LLM] Analysis sanitized and ready to send");
+    }
 
     return {
       success: true,
       result: sanitizedContent
     };
   } catch (error) {
-    console.error("[LLM] Error calling OpenRouter API:", error);
+    if (!isTestEnvironment) {
+      console.error("[LLM] Error calling OpenRouter API:", error);
+    }
 
     return {
       success: false,

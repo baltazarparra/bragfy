@@ -1,6 +1,16 @@
-import { initBot } from "../../src/bot";
+import { initBot, stopBot } from "../../src/bot";
 import TelegramBot from "node-telegram-bot-api";
 import * as userUtils from "../../src/utils/userUtils";
+import { resetBotState } from "../../src/bot/index";
+import { clearAllAnimationTimers } from "../../src/bot/commands";
+import {
+  jest,
+  describe,
+  beforeEach,
+  afterEach,
+  it,
+  expect
+} from "@jest/globals";
 
 // Mock TelegramBot
 jest.mock("node-telegram-bot-api");
@@ -8,16 +18,12 @@ jest.mock("node-telegram-bot-api");
 jest.mock("../../src/utils/userUtils");
 
 describe("initBot", () => {
-  // Mock das funções de userUtils
-  const mockUserExists = jest.spyOn(userUtils, "userExists");
-  const mockGetUserByTelegramId = jest.spyOn(userUtils, "getUserByTelegramId");
-
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Configure o mock para retornar um usuário existente por padrão
-    mockUserExists.mockResolvedValue(true);
-    mockGetUserByTelegramId.mockResolvedValue({
+    (userUtils.userExists as any).mockResolvedValue(true);
+    (userUtils.getUserByTelegramId as any).mockResolvedValue({
       id: 1,
       telegramId: 456,
       firstName: "Test",
@@ -28,16 +34,26 @@ describe("initBot", () => {
     });
   });
 
+  afterEach(() => {
+    // Limpa todos os temporizadores após cada teste para evitar vazamentos
+    clearAllAnimationTimers();
+
+    // Para a instância do bot para evitar vazamentos de polling
+    stopBot();
+  });
+
   it("deve configurar handlers de mensagens corretamente", async () => {
     // Arrange
     const mockOn = jest.fn();
     const mockOnText = jest.fn();
-    const mockSendMessage = jest.fn().mockResolvedValue({ message_id: 123 });
-    const mockSendChatAction = jest.fn().mockResolvedValue(true);
-    const mockEditMessageText = jest.fn().mockResolvedValue({});
+    const mockSendMessage = jest
+      .fn()
+      .mockResolvedValue({ message_id: 123 } as any);
+    const mockSendChatAction = jest.fn().mockResolvedValue(true as any);
+    const mockEditMessageText = jest.fn().mockResolvedValue({} as any);
 
     // Mock do construtor do TelegramBot
-    (TelegramBot as jest.MockedClass<typeof TelegramBot>).mockImplementation(
+    (TelegramBot as any).mockImplementation(
       () =>
         ({
           on: mockOn,
@@ -45,7 +61,7 @@ describe("initBot", () => {
           sendMessage: mockSendMessage,
           sendChatAction: mockSendChatAction,
           editMessageText: mockEditMessageText
-        }) as unknown as TelegramBot
+        }) as any
     );
 
     // Act

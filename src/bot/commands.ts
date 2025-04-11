@@ -3,7 +3,8 @@ import { resetBotState } from ".";
 import {
   userExists,
   createUser,
-  getUserByTelegramId
+  getUserByTelegramId,
+  saveUserAnalysis
 } from "../utils/userUtils";
 import {
   createActivity,
@@ -51,6 +52,54 @@ export const onboardingInProgress = new Map<number, boolean>();
 
 // Mapeia IDs de usuários para atividades do último documento gerado
 export const lastGeneratedDocumentActivities = new Map<number, Activity[]>();
+
+/**
+ * Map de intervalos e timeouts para limpar durante testes
+ */
+const activeTimers = {
+  intervals: new Map<string, NodeJS.Timeout>(),
+  timeouts: new Map<string, NodeJS.Timeout>()
+};
+
+/**
+ * Função para limpar todos os temporizadores ativos (usado em testes)
+ * @returns O número de temporizadores que foram limpos
+ */
+export const clearAllAnimationTimers = (): number => {
+  let count = 0;
+
+  // Limpa intervalos
+  activeTimers.intervals.forEach((interval) => {
+    clearInterval(interval);
+    count++;
+  });
+  activeTimers.intervals.clear();
+
+  // Limpa timeouts
+  activeTimers.timeouts.forEach((timeout) => {
+    clearTimeout(timeout);
+    count++;
+  });
+  activeTimers.timeouts.clear();
+
+  // Limpa lista de mensagens para parar animação
+  messagesToStopAnimation.clear();
+
+  // Este pequeno timeout garante que todas as mensagens em execução
+  // tenham tempo para detectar que devem parar
+  return count;
+};
+
+/**
+ * Verifica se uma mensagem está marcada para interrupção de animação
+ * @param chatId ID do chat da mensagem
+ * @param messageId ID da mensagem
+ * @returns true se a mensagem deve ter a animação interrompida
+ */
+function shouldStopAnimation(chatId: number, messageId: number): boolean {
+  const messageKey = `${chatId}:${messageId}`;
+  return messagesToStopAnimation.has(messageKey);
+}
 
 /**
  * Função para enviar um sticker aleatório para uma determinada interação
@@ -492,13 +541,7 @@ export const handleNewChat = async (
 };
 
 /**
- * Cria uma animação de três pontos para indicar atividade de processamento
- * @param bot - Instância do bot do Telegram
- * @param chatId - ID do chat
- * @param messageId - ID da mensagem a ser editada
- * @param baseText - Texto base da mensagem
- * @param iterations - Número de iterações da animação (padrão: 3)
- * @returns Promise que é resolvida quando a animação termina
+ * Função que implementa a animação de carregamento
  */
 export const createLoadingAnimation = async (
   bot: TelegramBot,
@@ -507,79 +550,45 @@ export const createLoadingAnimation = async (
   baseText: string,
   iterations: number = 3
 ): Promise<void> => {
-  // Validações iniciais
-  if (!bot || !chatId || !messageId) {
-    console.warn(
-      "[ANIMATION] Dados incompletos para animação de carregamento.",
-      { chatId, messageId }
-    );
-    return;
-  }
-
-  // Lista de padrões de erro que indicam que a mensagem não pode ser editada
-  const errorPatterns = [
-    "message to edit not found",
-    "MESSAGE_ID_INVALID",
-    "message is not modified",
-    "message can't be edited",
-    "message to edit not found",
-    "Bad Request: message to edit not found"
-  ];
-
-  // Chave para referência no conjunto de mensagens a serem paradas
+  let count = 0;
+  let interval: NodeJS.Timeout | null = null;
   const messageKey = `${chatId}:${messageId}`;
 
-  // Verifica primeiro se a mensagem existe tentando editá-la
-  try {
-    // Tenta enviar a primeira mensagem para verificar se a mensagem existe
-    await bot.editMessageText(`${baseText}`, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "Markdown"
-    });
-  } catch (error: any) {
-    // Se a mensagem não for encontrada, não tenta continuar a animação
-    const errorMessage = error?.message || error?.toString() || "";
-    if (errorPatterns.some((pattern) => errorMessage.includes(pattern))) {
-      console.warn(
-        `[ANIMATION] Mensagem ${messageId} para chat ${chatId} não pode ser editada: ${errorMessage}`
-      );
-      return; // Encerra a função se a mensagem não puder ser editada
-    }
+  // Padrões de erro que indicam que a mensagem não existe ou foi removida
+  const errorPatterns = [
+    "message to edit not found",
+    "message is not modified",
+    "message can't be edited",
+    "message to delete not found",
+    "Bad Request: message is not found"
+  ];
 
-    // Caso seja outro tipo de erro, registra e continua para tentar a animação
-    console.warn(`[ANIMATION] Erro ao verificar mensagem: ${errorMessage}`);
-  }
-
-  // Contador para controlar pausas
-  let count = 0;
-  // Armazena o último intervalo para limpeza
-  let interval: NodeJS.Timeout | null = null;
-
-  // Inicia o loop de animação
+  /**
+   * Função para atualizar a animação de carregamento
+   */
   const animate = async () => {
-    // Verifica se a mensagem deve parar a animação
+    // Verifica se a animação deve ser interrompida
     if (messagesToStopAnimation.has(messageKey)) {
       if (interval) {
         clearInterval(interval);
         interval = null;
+        const timerKey = `${chatId}:${messageId}`;
+        activeTimers.intervals.delete(timerKey);
       }
       messagesToStopAnimation.delete(messageKey);
-      console.log(
-        `[ANIMATION] Animação interrompida para a mensagem ${messageId} no chat ${chatId}`
-      );
+      // Remover console.log para evitar erros "Cannot log after tests are done"
       return;
     }
 
-    // Número de pontos para essa iteração
-    const dots = ".".repeat(count % (iterations + 1) || 1);
+    // Cria a string com os pontos de carregamento
+    const dots = ".".repeat((count % iterations) + 1);
+    const text = `${baseText}${dots}`;
 
     try {
-      // Tenta atualizar a mensagem com os pontos da animação
-      await bot.editMessageText(`${baseText}${dots}`, {
+      // Edita a mensagem original
+      await bot.editMessageText(text, {
         chat_id: chatId,
-        message_id: messageId,
-        parse_mode: "Markdown"
+        message_id: messageId
       });
     } catch (error: any) {
       // Verifica se é um erro que indica que a mensagem não pode ser editada
@@ -587,9 +596,11 @@ export const createLoadingAnimation = async (
 
       if (errorPatterns.some((pattern) => errorMessage.includes(pattern))) {
         // Se a mensagem não for encontrada, para a animação
-        console.warn(
-          `[ANIMATION] Não foi possível atualizar a animação para mensagem ${messageId} no chat ${chatId}: ${errorMessage}`
-        );
+        if (process.env.NODE_ENV !== "test") {
+          console.warn(
+            `[ANIMATION] Não foi possível atualizar a animação para mensagem ${messageId} no chat ${chatId}: ${errorMessage}`
+          );
+        }
 
         // Marca para parar a animação
         messagesToStopAnimation.add(messageKey);
@@ -598,6 +609,8 @@ export const createLoadingAnimation = async (
         if (interval) {
           clearInterval(interval);
           interval = null;
+          const timerKey = `${chatId}:${messageId}`;
+          activeTimers.intervals.delete(timerKey);
         }
 
         messagesToStopAnimation.delete(messageKey);
@@ -605,7 +618,9 @@ export const createLoadingAnimation = async (
       }
 
       // Outros erros são apenas registrados, mas a animação continua tentando
-      console.warn(`[ANIMATION] Erro ao atualizar animação: ${errorMessage}`);
+      if (process.env.NODE_ENV !== "test") {
+        console.warn(`[ANIMATION] Erro ao atualizar animação: ${errorMessage}`);
+      }
     }
 
     // Incrementa o contador para a próxima animação
@@ -614,6 +629,10 @@ export const createLoadingAnimation = async (
 
   // Define o temporizador para a animação - 700ms entre atualizações
   interval = setInterval(animate, 700);
+
+  // Armazena o intervalo para limpeza em testes
+  const timerKey = `${chatId}:${messageId}`;
+  activeTimers.intervals.set(timerKey, interval);
 
   // Garante que o temporizador não impede a finalização do processo Node
   if (interval && typeof interval.unref === "function") {
@@ -625,12 +644,18 @@ export const createLoadingAnimation = async (
     if (interval) {
       clearInterval(interval);
       interval = null;
+      activeTimers.intervals.delete(timerKey);
     }
     messagesToStopAnimation.delete(messageKey);
-    console.log(
-      `[ANIMATION] Timeout para animação da mensagem ${messageId} no chat ${chatId}`
-    );
+    if (process.env.NODE_ENV !== "test") {
+      console.log(
+        `[ANIMATION] Timeout para animação da mensagem ${messageId} no chat ${chatId}`
+      );
+    }
   }, 30000);
+
+  // Armazena o timeout para limpeza em testes
+  activeTimers.timeouts.set(timerKey, maxTimeout);
 
   // Garante que o timeout não impede a finalização do processo Node
   if (typeof maxTimeout.unref === "function") {
@@ -1608,13 +1633,58 @@ export const handleCallbackQuery = async (
       );
 
       try {
+        // Verifica se o usuário existe no banco de dados
+        const userRecord = await getUserByTelegramId(telegramUser.id);
+
+        if (!userRecord) {
+          console.warn(
+            `Usuário ${telegramUser.id} não encontrado no banco de dados.`
+          );
+          bot.sendMessage(
+            chatId,
+            "Não foi possível completar a análise. Por favor, envie /start para configurar seu perfil."
+          );
+
+          // Remove a mensagem de carregamento
+          try {
+            await bot.deleteMessage(chatId, loadingMsg.message_id);
+          } catch (deleteError) {
+            console.warn(
+              `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
+            );
+          }
+
+          bot.answerCallbackQuery(callbackQuery.id, {
+            text: "Erro: usuário não encontrado"
+          });
+          return;
+        }
+
         // Formata as atividades para o prompt
         const activitiesText = formatActivitiesForPrompt(activities);
 
-        // Solicita análise ao LLM
-        const analysis = await analyzeProfileWithLLM(activitiesText);
+        // Solicita análise ao LLM passando o userId para incluir análises anteriores
+        const analysis = await analyzeProfileWithLLM(
+          activitiesText,
+          userRecord.id
+        );
 
         if (analysis.success) {
+          // Salva a análise no banco de dados
+          try {
+            await saveUserAnalysis(
+              userRecord.id,
+              telegramUser.id,
+              analysis.result
+            );
+            console.log(
+              `[ANALYSIS] Análise salva para usuário ${userRecord.id}`
+            );
+          } catch (saveError) {
+            console.error("[ERROR] Erro ao salvar análise:", saveError);
+            // Continua mesmo se falhar ao salvar
+          }
+
           // Envia a análise como resposta
           await sendSafeMarkdown(
             bot,

@@ -1,9 +1,17 @@
 /// <reference types="jest" />
-import { jest, describe, beforeEach, it, expect } from "@jest/globals";
+import {
+  jest,
+  describe,
+  beforeEach,
+  afterEach,
+  it,
+  expect
+} from "@jest/globals";
 import TelegramBot from "node-telegram-bot-api";
-import { handleNewChat } from "../src/bot/commands";
+import { handleNewChat, clearAllAnimationTimers } from "../src/bot/commands";
 import { createUserErrorMessage } from "../src/utils/errorUtils";
 import { getUserByTelegramId, userExists } from "../src/utils/userUtils";
+import { stopBot } from "../src/bot";
 
 // Mock dos módulos necessários
 jest.mock("node-telegram-bot-api");
@@ -40,6 +48,14 @@ describe("Tratamento de Mensagens e Fallbacks", () => {
     };
 
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // Limpa todos os temporizadores após cada teste para evitar vazamentos
+    clearAllAnimationTimers();
+
+    // Para a instância do bot
+    stopBot();
   });
 
   it("deve incluir um ID de rastreamento nas mensagens de erro", () => {

@@ -22,6 +22,15 @@ export interface Activity {
   updatedAt: Date;
 }
 
+// Interface para o tipo UserAnalysis
+export interface UserAnalysis {
+  id: string;
+  userId: number;
+  telegramId: number;
+  content: string;
+  createdAt: Date;
+}
+
 // Criação de instância do PrismaClient com tratamento de erro
 let prismaInstance: PrismaClient;
 

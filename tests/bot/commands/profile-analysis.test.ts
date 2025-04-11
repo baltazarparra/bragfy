@@ -5,6 +5,7 @@ import {
 } from "../../../src/bot/commands";
 import { Activity } from "../../../src/db/client";
 import * as llmUtils from "../../../src/utils/llmUtils";
+import * as userUtils from "../../../src/utils/userUtils";
 import { createMockBot, setupMocksBeforeEach } from "../setup";
 
 // Mock do módulo llmUtils
@@ -103,6 +104,17 @@ describe("Análise de Perfil Profissional", () => {
   });
 
   it("deve solicitar análise de perfil e enviar o resultado", async () => {
+    // Configura mock para retornar um usuário válido
+    jest.spyOn(userUtils, "getUserByTelegramId").mockResolvedValue({
+      id: 42,
+      telegramId: telegramUserId,
+      firstName: "Usuário",
+      lastName: "Teste",
+      username: "usuario_teste",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
     // Cria um callback query para solicitação de análise
     const callbackQuery: TelegramBot.CallbackQuery = {
       id: "123",
@@ -143,11 +155,20 @@ describe("Análise de Perfil Profissional", () => {
       "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
     );
 
-    // Usa uma verificação mais flexível para a segunda chamada
-    const secondCallArgs = mockBot.sendMessage.mock.calls[1];
-    expect(secondCallArgs[0]).toBe(chatId);
-    expect(secondCallArgs[1]).toContain("Análise de perfil profissional");
-    expect(secondCallArgs[2]).toEqual(
+    // Verifica se a análise de perfil foi enviada como segunda mensagem
+    const allCalls = mockBot.sendMessage.mock.calls;
+    expect(allCalls.length).toBeGreaterThan(1);
+
+    // Procura pela chamada de envio da análise entre todas as chamadas
+    const analysisCall = allCalls.find(
+      (call) =>
+        typeof call[1] === "string" &&
+        call[1].includes("Análise de perfil profissional")
+    );
+
+    expect(analysisCall).toBeDefined();
+    expect(analysisCall[0]).toBe(chatId);
+    expect(analysisCall[2]).toEqual(
       expect.objectContaining({ parse_mode: "Markdown" })
     );
 
@@ -204,6 +225,17 @@ describe("Análise de Perfil Profissional", () => {
   });
 
   it("deve lidar com erro na análise de perfil", async () => {
+    // Configura mock para retornar um usuário válido
+    jest.spyOn(userUtils, "getUserByTelegramId").mockResolvedValue({
+      id: 42,
+      telegramId: telegramUserId,
+      firstName: "Usuário",
+      lastName: "Teste",
+      username: "usuario_teste",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
     // Mock para simular erro na análise
     (llmUtils.analyzeProfileWithLLM as jest.Mock).mockImplementationOnce(
       async () => {
@@ -248,10 +280,27 @@ describe("Análise de Perfil Profissional", () => {
     // Executa a função a ser testada
     await handleCallbackQuery(mockBot, callbackQuery);
 
-    // Verifica se a mensagem de erro foi enviada
-    expect(mockBot.sendMessage).toHaveBeenCalledWith(
+    // Verifica se a mensagem de erro foi enviada no lugar certo
+    // Primeiro é enviada a mensagem de carregamento, depois vem a mensagem de erro
+    expect(mockBot.sendMessage).toHaveBeenNthCalledWith(
+      1,
       chatId,
-      "Desculpe, não foi possível completar a análise do seu perfil. Por favor, tente novamente mais tarde ou entre em contato com o suporte."
+      "⏳ Analisando seu perfil profissional com base nas atividades registradas..."
     );
+
+    // Em algum momento deve ser enviada a mensagem de erro
+    const errorCalls = mockBot.sendMessage.mock.calls.filter(
+      (call) =>
+        typeof call[1] === "string" &&
+        call[1].includes(
+          "Desculpe, não foi possível completar a análise do seu perfil"
+        )
+    );
+
+    expect(errorCalls.length).toBeGreaterThan(0);
+    expect(errorCalls[0][0]).toBe(chatId);
+
+    // Verifica se a mensagem de carregamento foi removida
+    expect(mockBot.deleteMessage).toHaveBeenCalledWith(chatId, 999);
   });
 });

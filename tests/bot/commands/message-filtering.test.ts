@@ -1,4 +1,8 @@
-import { handleNewChat, onboardingInProgress } from "../../../src/bot/commands";
+import {
+  handleNewChat,
+  clearAllAnimationTimers,
+  onboardingInProgress
+} from "../../../src/bot/commands";
 import {
   createMockBot,
   createMessage,
@@ -18,6 +22,11 @@ describe("Filtragem de Mensagens", () => {
     existingUser = mockExistingUser(123456789);
     // Limpar estado de onboarding
     onboardingInProgress.delete(123456789);
+  });
+
+  afterEach(() => {
+    // Limpa todos os temporizadores após cada teste para evitar vazamentos
+    clearAllAnimationTimers();
   });
 
   describe("Mensagens de bots", () => {
