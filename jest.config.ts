@@ -1,6 +1,5 @@
-import type { Config } from "@jest/types";
-
-const config: Config.InitialOptions = {
+/** @type {import('ts-jest').JestConfigWithTsJest} */
+const config = {
   preset: "ts-jest",
   testEnvironment: "node",
   roots: ["<rootDir>/src/", "<rootDir>/tests/"],
