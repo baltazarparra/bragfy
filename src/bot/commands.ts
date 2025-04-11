@@ -359,24 +359,6 @@ export const handleNewChat = async (
       return;
     }
 
-    // Verifica se é a primeira atividade do dia
-    let loadingMessage = null;
-    try {
-      const todayActivities = await getActivitiesByPeriod(user.id, 1);
-
-      // Se não tiver atividades hoje, mostra mensagem de carregamento específica
-      if (todayActivities.length === 0) {
-        console.log(`Primeira atividade do dia para usuário ${user.id}`);
-        loadingMessage = await bot.sendMessage(
-          chatId,
-          "⏳ Registrando sua primeira atividade do dia..."
-        );
-      }
-    } catch (activityError) {
-      console.warn(`Erro ao verificar atividades do dia: ${activityError}`);
-      // Continua o fluxo mesmo se houver erro na verificação
-    }
-
     // Verificação usando NLU para pedidos de PDF
     const msgLower = messageText.toLowerCase().trim();
 
@@ -488,20 +470,6 @@ export const handleNewChat = async (
       `Recebi sua atividade:\n\n"${messageText}"\n\nDeseja confirmar, editar ou cancelar?`,
       options
     );
-
-    // Remove a mensagem de carregamento se existir
-    if (loadingMessage) {
-      try {
-        await bot.deleteMessage(chatId, loadingMessage.message_id);
-        console.log(
-          `Mensagem de carregamento removida para usuário ${user.id}`
-        );
-      } catch (deleteError) {
-        console.warn(
-          `Erro ao remover mensagem de carregamento: ${deleteError}`
-        );
-      }
-    }
   } catch (error) {
     console.error("Erro ao processar nova mensagem:", error);
 
@@ -532,126 +500,143 @@ export const handleNewChat = async (
  * @param iterations - Número de iterações da animação (padrão: 3)
  * @returns Promise que é resolvida quando a animação termina
  */
-export async function createLoadingAnimation(
+export const createLoadingAnimation = async (
   bot: TelegramBot,
   chatId: number,
   messageId: number,
   baseText: string,
   iterations: number = 3
-): Promise<void> {
-  // Verificação defensiva para entrada inválida
-  if (!messageId || messageId <= 0 || !chatId || chatId === 0) {
+): Promise<void> => {
+  // Validações iniciais
+  if (!bot || !chatId || !messageId) {
     console.warn(
-      `[ANIMATION] Parâmetros inválidos para animação: chatId=${chatId}, messageId=${messageId}`
+      "[ANIMATION] Dados incompletos para animação de carregamento.",
+      { chatId, messageId }
     );
     return;
   }
 
-  const dots = [".", "..", "..."];
-  const delay = 700; // ms entre atualizações
-  let messageExists = true;
-
-  // Chave única para identificar esta mensagem
-  const messageKey = `${chatId}:${messageId}`;
-
-  // Lista abrangente de padrões de erro que indicam que a mensagem não existe ou não pode ser editada
-  const invalidMessagePatterns = [
+  // Lista de padrões de erro que indicam que a mensagem não pode ser editada
+  const errorPatterns = [
     "message to edit not found",
     "MESSAGE_ID_INVALID",
-    "message can't be edited",
     "message is not modified",
-    "Bad Request",
-    "message identifier is not specified",
-    "message to delete not found",
-    "chat not found",
-    "CHAT_NOT_FOUND"
+    "message can't be edited",
+    "message to edit not found",
+    "Bad Request: message to edit not found"
   ];
 
-  // Verifica se a mensagem existe antes de iniciar a animação
+  // Chave para referência no conjunto de mensagens a serem paradas
+  const messageKey = `${chatId}:${messageId}`;
+
+  // Verifica primeiro se a mensagem existe tentando editá-la
   try {
-    // Verifica se a mensagem já foi marcada para exclusão
+    // Tenta enviar a primeira mensagem para verificar se a mensagem existe
+    await bot.editMessageText(`${baseText}`, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: "Markdown"
+    });
+  } catch (error: any) {
+    // Se a mensagem não for encontrada, não tenta continuar a animação
+    const errorMessage = error?.message || error?.toString() || "";
+    if (errorPatterns.some((pattern) => errorMessage.includes(pattern))) {
+      console.warn(
+        `[ANIMATION] Mensagem ${messageId} para chat ${chatId} não pode ser editada: ${errorMessage}`
+      );
+      return; // Encerra a função se a mensagem não puder ser editada
+    }
+
+    // Caso seja outro tipo de erro, registra e continua para tentar a animação
+    console.warn(`[ANIMATION] Erro ao verificar mensagem: ${errorMessage}`);
+  }
+
+  // Contador para controlar pausas
+  let count = 0;
+  // Armazena o último intervalo para limpeza
+  let interval: NodeJS.Timeout | null = null;
+
+  // Inicia o loop de animação
+  const animate = async () => {
+    // Verifica se a mensagem deve parar a animação
     if (messagesToStopAnimation.has(messageKey)) {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+      messagesToStopAnimation.delete(messageKey);
       console.log(
-        `[ANIMATION] Mensagem ${messageId} já está marcada para exclusão, não iniciando animação`
+        `[ANIMATION] Animação interrompida para a mensagem ${messageId} no chat ${chatId}`
       );
       return;
     }
 
-    // Tenta fazer uma edição simples para verificar se a mensagem existe
-    await bot.editMessageText(`${baseText}`, {
-      chat_id: chatId,
-      message_id: messageId
-    });
-  } catch (error) {
-    const errorMessage = String(error);
+    // Número de pontos para essa iteração
+    const dots = ".".repeat(count % (iterations + 1) || 1);
 
-    // Verifica se o erro indica que a mensagem não existe ou não pode ser editada
-    if (
-      invalidMessagePatterns.some((pattern) => errorMessage.includes(pattern))
-    ) {
-      console.warn(
-        `[ANIMATION] Mensagem ${messageId} não existe ou não pode ser editada: ${error}`
-      );
-      return; // Encerra imediatamente
-    } else {
-      // Outros erros de inicialização são registrados mas tentamos continuar
-      console.warn(
-        `[ANIMATION] Erro ao verificar mensagem de animação: ${error}`
-      );
-    }
-  }
+    try {
+      // Tenta atualizar a mensagem com os pontos da animação
+      await bot.editMessageText(`${baseText}${dots}`, {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: "Markdown"
+      });
+    } catch (error: any) {
+      // Verifica se é um erro que indica que a mensagem não pode ser editada
+      const errorMessage = error?.message || error?.toString() || "";
 
-  // Continua com a animação apenas se a verificação inicial passou
-  for (let i = 0; i < iterations && messageExists; i++) {
-    for (const dot of dots) {
-      // Verifica se a mensagem foi marcada para exclusão antes de cada tentativa de edição
-      if (messagesToStopAnimation.has(messageKey)) {
-        console.log(
-          `[ANIMATION] Mensagem ${messageId} marcada para exclusão, parando animação`
+      if (errorPatterns.some((pattern) => errorMessage.includes(pattern))) {
+        // Se a mensagem não for encontrada, para a animação
+        console.warn(
+          `[ANIMATION] Não foi possível atualizar a animação para mensagem ${messageId} no chat ${chatId}: ${errorMessage}`
         );
-        // Remove da lista após processar
+
+        // Marca para parar a animação
+        messagesToStopAnimation.add(messageKey);
+
+        // Finaliza imediatamente
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+
         messagesToStopAnimation.delete(messageKey);
         return;
       }
 
-      try {
-        await bot.editMessageText(`${baseText}${dot}`, {
-          chat_id: chatId,
-          message_id: messageId
-        });
-
-        // Espera entre atualizações
-        await new Promise((resolve) => {
-          // Use .unref() para evitar que o timer bloqueie o encerramento do processo
-          setTimeout(resolve, delay).unref();
-        });
-      } catch (error) {
-        const errorMessage = String(error);
-
-        // Verifica se o erro indica que a mensagem não existe ou não pode ser editada
-        if (
-          invalidMessagePatterns.some((pattern) =>
-            errorMessage.includes(pattern)
-          )
-        ) {
-          console.warn(`[ANIMATION] Interrompendo animação: ${error}`);
-          messageExists = false;
-          break; // Sai do loop interno e não tenta mais edições
-        } else {
-          // Para outros erros, apenas loga e continua
-          console.warn(
-            `[ANIMATION] Erro ao atualizar animação de carregamento: ${error}`
-          );
-        }
-      }
+      // Outros erros são apenas registrados, mas a animação continua tentando
+      console.warn(`[ANIMATION] Erro ao atualizar animação: ${errorMessage}`);
     }
+
+    // Incrementa o contador para a próxima animação
+    count++;
+  };
+
+  // Define o temporizador para a animação - 700ms entre atualizações
+  interval = setInterval(animate, 700);
+
+  // Garante que o temporizador não impede a finalização do processo Node
+  if (interval && typeof interval.unref === "function") {
+    interval.unref();
   }
 
-  // Limpa as marcações quando a animação termina normalmente
-  if (messagesToStopAnimation.has(messageKey)) {
+  // Define um timeout máximo para a animação (30 segundos)
+  const maxTimeout = setTimeout(() => {
+    if (interval) {
+      clearInterval(interval);
+      interval = null;
+    }
     messagesToStopAnimation.delete(messageKey);
+    console.log(
+      `[ANIMATION] Timeout para animação da mensagem ${messageId} no chat ${chatId}`
+    );
+  }, 30000);
+
+  // Garante que o timeout não impede a finalização do processo Node
+  if (typeof maxTimeout.unref === "function") {
+    maxTimeout.unref();
   }
-}
+};
 
 /**
  * Handler para callbacks de botões inline
@@ -1129,24 +1114,6 @@ export const handleCallbackQuery = async (
         return;
       }
 
-      // Verifica se é a primeira atividade do dia e mostra loader apenas se for
-      let activityLoadingMessage = null;
-      try {
-        const todayActivities = await getActivitiesByPeriod(user.id, 1);
-
-        // Se não tiver atividades hoje, mostra mensagem de carregamento específica
-        if (todayActivities.length === 0) {
-          console.log(`Primeira atividade do dia para usuário ${user.id}`);
-          activityLoadingMessage = await bot.sendMessage(
-            chatId,
-            "⏳ Registrando sua primeira atividade do dia..."
-          );
-        }
-      } catch (activityError) {
-        console.warn(`Erro ao verificar atividades do dia: ${activityError}`);
-        // Continua o fluxo mesmo se houver erro na verificação
-      }
-
       try {
         // Inicia o fluxo perguntando sobre a urgência
         // Armazena a atividade pendente no mapa
@@ -1177,17 +1144,6 @@ export const handleCallbackQuery = async (
           `Qual é a urgência desta atividade?\n\n"${content}"`,
           urgencyOptions
         );
-
-        // Remove a mensagem de carregamento se existir
-        if (activityLoadingMessage) {
-          try {
-            await bot.deleteMessage(chatId, activityLoadingMessage.message_id);
-          } catch (deleteError) {
-            console.warn(
-              `[WARN] Não foi possível remover mensagem de carregamento: ${deleteError}`
-            );
-          }
-        }
 
         // Responde ao callback original
         console.log(

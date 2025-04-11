@@ -20,7 +20,7 @@ describe("Fluxo de Atividades", () => {
   });
 
   describe("Nova atividade", () => {
-    it("deve enviar mensagem de carregamento para a primeira atividade do dia", async () => {
+    it("não deve enviar mensagem de carregamento específica para primeira atividade do dia", async () => {
       // Arrange
       const msg = createMessage(
         existingUser.telegramId,
@@ -35,13 +35,14 @@ describe("Fluxo de Atividades", () => {
       await handleNewChat(mockBot, msg);
 
       // Assert
-      // Verifica a primeira chamada para sendMessage (carregamento específico da primeira atividade)
-      expect(mockBot.sendMessage).toHaveBeenCalledWith(
-        existingUser.telegramId,
-        "⏳ Registrando sua primeira atividade do dia..."
+      // Verifica que NÃO foi enviada a mensagem de carregamento específica da primeira atividade
+      const loadingCalls = mockBot.sendMessage.mock.calls.filter(
+        (call: [number, string, any]) =>
+          call[1] === "⏳ Registrando sua primeira atividade do dia..."
       );
+      expect(loadingCalls.length).toBe(0);
 
-      // Verifica a última chamada para sendMessage (confirmação da atividade)
+      // Ainda deve confirmar a atividade normalmente
       expect(mockBot.sendMessage).toHaveBeenCalledWith(
         existingUser.telegramId,
         expect.stringContaining("Recebi sua atividade"),
@@ -53,7 +54,7 @@ describe("Fluxo de Atividades", () => {
       );
     });
 
-    it("não deve enviar mensagem de carregamento da primeira atividade para atividades subsequentes do dia", async () => {
+    it("deve enviar apenas a mensagem de confirmação para atividades subsequentes do dia", async () => {
       // Arrange
       const msg = createMessage(
         existingUser.telegramId,

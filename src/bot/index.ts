@@ -171,7 +171,7 @@ Requisições falhas: ${status.failedRequests}
         firstInteractionUsers.set(userId, true);
 
         try {
-          // Envia mensagem de loader para qualquer mensagem (não apenas primeira interação)
+          // Envia mensagem de loader para primeira interação
           const loaderMsg = await bot.sendMessage(
             chatId,
             "Ainda estou acordando..."
@@ -198,13 +198,30 @@ Requisições falhas: ${status.failedRequests}
           console.warn(`Erro ao enviar loader para usuário ${userId}:`, error);
         }
       } else {
-        // Para usuários que já interagiram, envia um loader mais curto
+        // Para usuários que já interagiram, verifica o tipo de comando pelo conteúdo da mensagem
         try {
-          // Envia "Registrando atividade..." com loader
-          const loaderMsg = await bot.sendMessage(
-            chatId,
-            "Registrando atividade..."
-          );
+          const messageText = msg.text?.toLowerCase() || "";
+          let loaderText = "Registrando atividade...";
+
+          // Detecta se é uma solicitação de PDF
+          if (
+            messageText.includes("pdf") ||
+            messageText.includes("documento") ||
+            messageText.includes("gerar documento")
+          ) {
+            loaderText = "Processando solicitação de PDF...";
+          }
+          // Detecta se é uma solicitação de Brag Document ou Resumo
+          else if (
+            messageText.includes("resumo") ||
+            messageText.includes("brag") ||
+            messageText.includes("ver atividades")
+          ) {
+            loaderText = "Preparando seu resumo de atividades...";
+          }
+
+          // Envia a mensagem de loading contextual
+          const loaderMsg = await bot.sendMessage(chatId, loaderText);
 
           // Armazena a referência da animação de carregamento
           if (loaderMsg && loaderMsg.message_id) {
@@ -219,7 +236,7 @@ Requisições falhas: ${status.failedRequests}
               bot,
               chatId,
               loaderMsg.message_id,
-              "Registrando atividade",
+              loaderText.replace("...", ""),
               1
             );
           }
@@ -250,7 +267,7 @@ Requisições falhas: ${status.failedRequests}
         const loadingInfo = activeLoadingAnimations.get(userId);
         if (loadingInfo) {
           // Aguarda um pequeno tempo para garantir que a resposta principal foi enviada
-          setTimeout(async () => {
+          const timer = setTimeout(async () => {
             try {
               await bot.deleteMessage(
                 loadingInfo.chatId,
@@ -264,6 +281,9 @@ Requisições falhas: ${status.failedRequests}
               activeLoadingAnimations.delete(userId);
             }
           }, 500);
+
+          // Garante que o timer não bloqueia a finalização do processo
+          timer.unref();
         }
       } catch (error: unknown) {
         console.warn(`[LOADER] Erro ao processar remoção: ${error}`);
