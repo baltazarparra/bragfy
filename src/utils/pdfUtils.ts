@@ -33,9 +33,97 @@ interface Activity {
 function sanitizeText(text: string): string {
   if (!text) return "";
 
-  // Remove emojis e caracteres fora do intervalo básico suportado pela codificação WinAnsi
-  // Mantém apenas caracteres ASCII básicos e alguns símbolos comuns
+  // Abordagem simplificada: remover caracteres não suportados, mantendo caracteres básicos
+  // Emojis específicos serão adicionados diretamente sem passar por sanitizeText
   return text.replace(/[^\x20-\x7F\xA0-\xFF]/g, "");
+}
+
+/**
+ * Converte urgência para um texto descritivo
+ */
+export function urgencyToIcon(urgency?: string): string {
+  if (!urgency || typeof urgency !== "string" || urgency.trim() === "") {
+    return "—";
+  }
+
+  switch (urgency.toLowerCase().trim()) {
+    case "high":
+      return "🔥";
+    case "medium":
+      return "🟡";
+    case "low":
+      return "🧊";
+    default:
+      return "—";
+  }
+}
+
+/**
+ * Converte urgência para texto para o PDF
+ */
+export function urgencyToText(urgency?: string): string {
+  if (!urgency || typeof urgency !== "string" || urgency.trim() === "") {
+    return "—";
+  }
+
+  switch (urgency.toLowerCase().trim()) {
+    case "high":
+      return "Alta";
+    case "medium":
+      return "Média";
+    case "low":
+      return "Baixa";
+    default:
+      return "—";
+  }
+}
+
+/**
+ * Converte impacto para um ícone textual
+ */
+export function impactToIcon(impact?: string): string {
+  if (!impact || typeof impact !== "string" || impact.trim() === "") {
+    return "—";
+  }
+
+  switch (impact.toLowerCase().trim()) {
+    case "high":
+      return "🚀";
+    case "medium":
+      return "📦";
+    case "low":
+      return "🐾";
+    default:
+      return "—";
+  }
+}
+
+/**
+ * Converte impacto para texto para o PDF
+ */
+export function impactToText(impact?: string): string {
+  if (!impact || typeof impact !== "string" || impact.trim() === "") {
+    return "—";
+  }
+
+  switch (impact.toLowerCase().trim()) {
+    case "high":
+      return "Alto";
+    case "medium":
+      return "Médio";
+    case "low":
+      return "Baixo";
+    default:
+      return "—";
+  }
+}
+
+/**
+ * Formata a data para o formato DD/MM/YYYY
+ */
+function formatDate(date: Date | string): string {
+  const d = date instanceof Date ? date : new Date(date);
+  return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
 }
 
 /**
@@ -66,73 +154,49 @@ export async function generateBragDocumentPDF(
       text: string,
       font: any,
       size: number,
-      indent: number = 0
+      x: number,
+      y: number,
+      options: any = {}
     ) => {
       const sanitizedText = sanitizeText(text || "");
       page.drawText(sanitizedText, {
-        x: margin + indent,
-        y: currentY,
+        x,
+        y,
         size,
         font,
-        color: rgb(0, 0, 0)
+        color: rgb(0, 0, 0),
+        ...options
       });
-      currentY -= lineHeight * (size / 12);
-    };
-
-    // Função helper para adicionar texto quebrado em linhas
-    const addMultilineText = (
-      text: string,
-      font: any,
-      size: number,
-      indent: number = 0,
-      maxWidth: number = pageWidth - indent
-    ) => {
-      const textLines = fitTextToWidth(
-        sanitizeText(text || ""),
-        font,
-        size,
-        maxWidth
-      );
-
-      for (const line of textLines) {
-        if (currentY < margin + 50) {
-          // Adiciona nova página se não houver espaço suficiente
-          page.drawText("Continua na próxima página...", {
-            x: margin,
-            y: margin,
-            size: 10,
-            font: helveticaFont,
-            color: rgb(0.5, 0.5, 0.5)
-          });
-
-          page = pdfDoc.addPage([595.28, 841.89]);
-          currentY = page.getHeight() - margin;
-        }
-
-        page.drawText(line, {
-          x: margin + indent,
-          y: currentY,
-          size,
-          font,
-          color: rgb(0, 0, 0)
-        });
-        currentY -= lineHeight * (size / 12);
-      }
-
-      // Adiciona um pequeno espaço extra após blocos de múltiplas linhas
-      currentY -= lineHeight * 0.5;
+      return y - lineHeight * (size / 12);
     };
 
     // Adiciona cabeçalho
-    addText("BRAG DOCUMENT", helveticaBold, 18);
-    currentY -= 20;
+    currentY = addText("BRAG DOCUMENT", helveticaBold, 18, margin, currentY);
+    currentY -= 5;
+
+    // Adiciona data de geração no cabeçalho
+    const generationDate = formatDate(new Date(data.generatedAt));
+    currentY = addText(
+      `Gerado em ${generationDate}`,
+      helveticaFont,
+      10,
+      margin,
+      currentY
+    );
+    currentY -= 10;
 
     // Adiciona informações do usuário
     const userName = `${data.user.firstName}${data.user.lastName ? " " + data.user.lastName : ""}`;
-    addText(userName, helveticaBold, 16);
+    currentY = addText(userName, helveticaBold, 16, margin, currentY);
 
     if (data.user.username) {
-      addText(`@${data.user.username}`, helveticaFont, 12);
+      currentY = addText(
+        `@${data.user.username}`,
+        helveticaFont,
+        12,
+        margin,
+        currentY
+      );
     }
 
     currentY -= 10;
@@ -145,90 +209,455 @@ export async function generateBragDocumentPDF(
       periodText = "Últimos 30 dias";
     }
 
-    addText(`Período: ${periodText}`, helveticaFont, 12);
-    addText(
-      `Gerado em: ${formatTimestamp(new Date(data.generatedAt))}`,
+    currentY = addText(
+      `Período: ${periodText}`,
       helveticaFont,
-      12
+      12,
+      margin,
+      currentY
+    );
+    currentY -= 15;
+
+    // Configurações da tabela
+    const columnWidths = {
+      date: 80, // Largura da coluna de data
+      activity: pageWidth - 200, // Largura da coluna de atividade
+      urgency: 60, // Largura da coluna de urgência
+      impact: 60 // Largura da coluna de impacto
+    };
+
+    let tableTop = currentY;
+    const rowHeight = 20; // Altura mínima da linha
+    let tableBottom = tableTop - rowHeight; // Inicializar com altura do cabeçalho
+
+    // Desenha o cabeçalho da tabela
+    const headerY = tableTop;
+
+    // Fundo do cabeçalho (cinza claro)
+    page.drawRectangle({
+      x: margin,
+      y: headerY - rowHeight,
+      width: pageWidth,
+      height: rowHeight,
+      color: rgb(0.95, 0.95, 0.95)
+    });
+
+    // Texto do cabeçalho
+    addText("Data", helveticaBold, 12, margin + 5, headerY - 15);
+    addText(
+      "Atividade",
+      helveticaBold,
+      12,
+      margin + columnWidths.date + 5,
+      headerY - 15
+    );
+    addText(
+      "Urgência",
+      helveticaBold,
+      12,
+      margin + columnWidths.date + columnWidths.activity + 5,
+      headerY - 15
+    );
+    addText(
+      "Impacto",
+      helveticaBold,
+      12,
+      margin +
+        columnWidths.date +
+        columnWidths.activity +
+        columnWidths.urgency +
+        5,
+      headerY - 15
     );
 
-    currentY -= 30;
-
-    // Adiciona uma linha divisória
+    // Linha horizontal abaixo do cabeçalho
     page.drawLine({
-      start: { x: margin, y: currentY + 10 },
-      end: { x: page.getWidth() - margin, y: currentY + 10 },
-      thickness: 1,
+      start: { x: margin, y: headerY - rowHeight },
+      end: { x: margin + pageWidth, y: headerY - rowHeight },
+      thickness: 0.5,
       color: rgb(0.8, 0.8, 0.8)
     });
 
-    currentY -= 20;
-
-    // Adiciona cabeçalho da lista de atividades
-    addText("ATIVIDADES", helveticaBold, 14);
-    currentY -= 10;
-
     // Verifica se há atividades
     if (!data.activities || data.activities.length === 0) {
-      addText("Nenhuma atividade registrada neste período.", helveticaFont, 12);
+      const emptyY = headerY - rowHeight - rowHeight / 2;
+      addText(
+        "Nenhuma atividade registrada neste período.",
+        helveticaFont,
+        12,
+        margin + 5,
+        emptyY
+      );
+
+      // Atualiza a parte inferior da tabela
+      tableBottom = emptyY - rowHeight / 2;
     } else {
+      // Função para calcular altura do texto de acordo com tamanho e largura disponível
+      const calculateTextHeight = (
+        text: string,
+        font: any,
+        fontSize: number,
+        maxWidth: number
+      ): number => {
+        const avgCharWidth = fontSize * 0.6; // Estimativa da largura média de um caractere
+        const charsPerLine = Math.floor(maxWidth / avgCharWidth);
+        const lines = Math.ceil(text.length / charsPerLine);
+        return lines * lineHeight;
+      };
+
+      let currentRowY = headerY - rowHeight;
+      let pageNumber = 1;
+      const totalPages = Math.ceil(data.activities.length / 25) || 1; // ~25 atividades por página
+
       // Itera sobre as atividades
       for (let i = 0; i < data.activities.length; i++) {
         const activity = data.activities[i];
 
-        // Adiciona data da atividade
-        const activityDate =
-          activity.date instanceof Date
-            ? formatTimestamp(activity.date)
-            : formatTimestamp(new Date(activity.date));
+        // Calcular altura necessária para o conteúdo
+        const activityText = sanitizeText(activity.content || "");
+        const textHeight = calculateTextHeight(
+          activityText,
+          helveticaFont,
+          11,
+          columnWidths.activity - 10
+        );
+        const currentRowHeight = Math.max(rowHeight, textHeight);
 
-        addText(activityDate, helveticaBold, 12);
-
-        // Adiciona conteúdo da atividade
-        addMultilineText(activity.content, helveticaFont, 12, 10);
-
-        // Adiciona urgência e impacto se disponíveis
-        if (activity.urgency) {
-          addText(
-            `Urgência: ${formatUrgencyLabel(activity.urgency)}`,
-            helveticaFont,
-            11,
-            10
-          );
-        }
-
-        if (activity.impact) {
-          addText(
-            `Impacto: ${formatImpactLabel(activity.impact)}`,
-            helveticaFont,
-            11,
-            10
-          );
-        }
-
-        // Adiciona separador entre atividades, exceto após a última
-        if (i < data.activities.length - 1) {
-          currentY -= 10;
+        // Verifica se precisa de nova página
+        if (currentRowY - currentRowHeight < margin + 50) {
+          // Desenha linhas verticais da tabela na página atual
           page.drawLine({
-            start: { x: margin, y: currentY + 5 },
-            end: { x: page.getWidth() - margin, y: currentY + 5 },
+            start: { x: margin, y: tableTop },
+            end: { x: margin, y: currentRowY },
             thickness: 0.5,
-            color: rgb(0.9, 0.9, 0.9)
+            color: rgb(0.8, 0.8, 0.8)
           });
-          currentY -= 15;
+
+          page.drawLine({
+            start: { x: margin + columnWidths.date, y: tableTop },
+            end: { x: margin + columnWidths.date, y: currentRowY },
+            thickness: 0.5,
+            color: rgb(0.8, 0.8, 0.8)
+          });
+
+          page.drawLine({
+            start: {
+              x: margin + columnWidths.date + columnWidths.activity,
+              y: tableTop
+            },
+            end: {
+              x: margin + columnWidths.date + columnWidths.activity,
+              y: currentRowY
+            },
+            thickness: 0.5,
+            color: rgb(0.8, 0.8, 0.8)
+          });
+
+          page.drawLine({
+            start: {
+              x:
+                margin +
+                columnWidths.date +
+                columnWidths.activity +
+                columnWidths.urgency,
+              y: tableTop
+            },
+            end: {
+              x:
+                margin +
+                columnWidths.date +
+                columnWidths.activity +
+                columnWidths.urgency,
+              y: currentRowY
+            },
+            thickness: 0.5,
+            color: rgb(0.8, 0.8, 0.8)
+          });
+
+          page.drawLine({
+            start: { x: margin + pageWidth, y: tableTop },
+            end: { x: margin + pageWidth, y: currentRowY },
+            thickness: 0.5,
+            color: rgb(0.8, 0.8, 0.8)
+          });
+
+          // Linha horizontal inferior da tabela
+          page.drawLine({
+            start: { x: margin, y: currentRowY },
+            end: { x: margin + pageWidth, y: currentRowY },
+            thickness: 0.5,
+            color: rgb(0.8, 0.8, 0.8)
+          });
+
+          // Adiciona rodapé na página atual
+          const footerY = margin;
+          addText(
+            "Bragfy - Seu assistente para gestão de Brag Documents",
+            helveticaFont,
+            9,
+            margin,
+            footerY
+          );
+          addText(
+            `Página ${pageNumber} de ${totalPages}`,
+            helveticaFont,
+            9,
+            margin + pageWidth - 80,
+            footerY
+          );
+
+          // Cria nova página
+          page = pdfDoc.addPage([595.28, 841.89]);
+          pageNumber++;
+
+          // Reinicia posição Y
+          currentY = page.getHeight() - margin;
+
+          // Adiciona cabeçalho na nova página
+          currentY = addText(
+            "BRAG DOCUMENT (continuação)",
+            helveticaBold,
+            18,
+            margin,
+            currentY
+          );
+          currentY -= 20;
+
+          // Redesenha o cabeçalho da tabela
+          tableTop = currentY;
+
+          // Fundo do cabeçalho
+          page.drawRectangle({
+            x: margin,
+            y: tableTop - rowHeight,
+            width: pageWidth,
+            height: rowHeight,
+            color: rgb(0.95, 0.95, 0.95)
+          });
+
+          // Texto do cabeçalho
+          addText("Data", helveticaBold, 12, margin + 5, tableTop - 15);
+          addText(
+            "Atividade",
+            helveticaBold,
+            12,
+            margin + columnWidths.date + 5,
+            tableTop - 15
+          );
+          addText(
+            "Urgência",
+            helveticaBold,
+            12,
+            margin + columnWidths.date + columnWidths.activity + 5,
+            tableTop - 15
+          );
+          addText(
+            "Impacto",
+            helveticaBold,
+            12,
+            margin +
+              columnWidths.date +
+              columnWidths.activity +
+              columnWidths.urgency +
+              5,
+            tableTop - 15
+          );
+
+          // Linha horizontal abaixo do cabeçalho
+          page.drawLine({
+            start: { x: margin, y: tableTop - rowHeight },
+            end: { x: margin + pageWidth, y: tableTop - rowHeight },
+            thickness: 0.5,
+            color: rgb(0.8, 0.8, 0.8)
+          });
+
+          currentRowY = tableTop - rowHeight;
         }
+
+        // Desenha a linha para a atividade atual
+        const activityDateFormatted = formatDate(activity.date);
+
+        // Preparar pontos de texto
+        const dateTextY = currentRowY - rowHeight / 2 - 5;
+        const urgencyTextY = dateTextY;
+        const impactTextY = dateTextY;
+
+        // Adicionar textos
+        addText(
+          activityDateFormatted,
+          helveticaFont,
+          11,
+          margin + 5,
+          dateTextY
+        );
+
+        // Adicionar conteúdo da atividade com wrap
+        const lines = fitTextToWidth(
+          activityText,
+          helveticaFont,
+          11,
+          columnWidths.activity - 10
+        );
+
+        let activityTextY = currentRowY - 15;
+        for (const line of lines) {
+          addText(
+            line,
+            helveticaFont,
+            11,
+            margin + columnWidths.date + 5,
+            activityTextY
+          );
+          activityTextY -= lineHeight;
+        }
+
+        // Centrar os ícones nas colunas
+        const urgencyTextX =
+          margin + columnWidths.date + columnWidths.activity + 5;
+        const impactTextX =
+          margin +
+          columnWidths.date +
+          columnWidths.activity +
+          columnWidths.urgency +
+          5;
+
+        // Usando drawText diretamente para emojis sem sanitizar
+        const iconSize = 11;
+
+        // Definir caractere de traço para valores ausentes
+        const dashChar = "—";
+
+        // Verificar e desenhar ícone de urgência
+        if (activity.urgency) {
+          // Usar texto em vez de ícones para garantir compatibilidade com o PDF
+          const text = urgencyToText(activity.urgency);
+
+          page.drawText(text, {
+            x: urgencyTextX,
+            y: urgencyTextY,
+            size: iconSize,
+            font: helveticaFont,
+            color: rgb(0, 0, 0)
+          });
+        } else {
+          page.drawText(dashChar, {
+            x: urgencyTextX,
+            y: urgencyTextY,
+            size: iconSize,
+            font: helveticaFont,
+            color: rgb(0, 0, 0)
+          });
+        }
+
+        // Verificar e desenhar ícone de impacto
+        if (activity.impact) {
+          // Usar texto em vez de ícones para garantir compatibilidade com o PDF
+          const text = impactToText(activity.impact);
+
+          page.drawText(text, {
+            x: impactTextX,
+            y: impactTextY,
+            size: iconSize,
+            font: helveticaFont,
+            color: rgb(0, 0, 0)
+          });
+        } else {
+          page.drawText(dashChar, {
+            x: impactTextX,
+            y: impactTextY,
+            size: iconSize,
+            font: helveticaFont,
+            color: rgb(0, 0, 0)
+          });
+        }
+
+        // Linha horizontal entre as linhas da tabela
+        page.drawLine({
+          start: { x: margin, y: currentRowY - currentRowHeight },
+          end: { x: margin + pageWidth, y: currentRowY - currentRowHeight },
+          thickness: 0.5,
+          color: rgb(0.8, 0.8, 0.8)
+        });
+
+        // Atualiza a posição Y para a próxima linha
+        currentRowY -= currentRowHeight;
+        tableBottom = currentRowY;
       }
+
+      // Desenha linhas verticais da tabela na última página
+      page.drawLine({
+        start: { x: margin, y: tableTop },
+        end: { x: margin, y: tableBottom },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8)
+      });
+
+      page.drawLine({
+        start: { x: margin + columnWidths.date, y: tableTop },
+        end: { x: margin + columnWidths.date, y: tableBottom },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8)
+      });
+
+      page.drawLine({
+        start: {
+          x: margin + columnWidths.date + columnWidths.activity,
+          y: tableTop
+        },
+        end: {
+          x: margin + columnWidths.date + columnWidths.activity,
+          y: tableBottom
+        },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8)
+      });
+
+      page.drawLine({
+        start: {
+          x:
+            margin +
+            columnWidths.date +
+            columnWidths.activity +
+            columnWidths.urgency,
+          y: tableTop
+        },
+        end: {
+          x:
+            margin +
+            columnWidths.date +
+            columnWidths.activity +
+            columnWidths.urgency,
+          y: tableBottom
+        },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8)
+      });
+
+      page.drawLine({
+        start: { x: margin + pageWidth, y: tableTop },
+        end: { x: margin + pageWidth, y: tableBottom },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8)
+      });
     }
 
-    // Adiciona rodapé
+    // Adiciona rodapé na última página
     const footerY = margin;
-    page.drawText("Bragfy - Seu assistente para gestão de Brag Documents", {
-      x: margin,
-      y: footerY,
-      size: 10,
-      font: helveticaFont,
-      color: rgb(0.5, 0.5, 0.5)
-    });
+    addText(
+      "Bragfy - Seu assistente para gestão de Brag Documents",
+      helveticaFont,
+      9,
+      margin,
+      footerY
+    );
+    const totalPages = Math.ceil((data.activities?.length || 0) / 25) || 1;
+    addText(
+      `Página ${totalPages} de ${totalPages}`,
+      helveticaFont,
+      9,
+      margin + pageWidth - 80,
+      footerY
+    );
 
     // Serializa o documento para um buffer
     const pdfBytes = await pdfDoc.save();

@@ -68,6 +68,8 @@ O projeto Bragfy é um agente do Telegram desenvolvido com:
 
 **Ao enviar uma mensagem:**
 
+- Exibimos uma única mensagem de feedback "Ainda estou acordando..." com animação visual de pontos
+- A animação é criada pela função createLoadingAnimation() com 2 iterações (2-3 segundos)
 - Perguntamos se quer editar, cancelar ou confirmar o conteúdo
 - Ao confirmar, solicitamos informações adicionais sobre urgência e impacto
 - Após preenchimento, salvamos a atividade com timestamp e detalhes
@@ -122,6 +124,7 @@ O projeto Bragfy é um agente do Telegram desenvolvido com:
 ## 🤖 AX — Experiência do Agente
 
 - Interface de chat intuitiva
+- Feedback visual através de animação de carregamento para primeira interação
 - Feedback claro para cada ação (sucesso, erro, vazio)
 - Mensagens formatadas com Markdown para melhor legibilidade
 - Timestamps em formato legível (dd/mm/yyyy hh:mm:ss)

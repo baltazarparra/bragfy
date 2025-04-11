@@ -81,10 +81,11 @@ npm start
 ## Fluxo do Usuário
 
 1. O usuário interage com o agente via Telegram
-2. Registra suas atividades profissionais
-3. Fornece informações sobre urgência e impacto
-4. Solicita a geração de um Brag Document
-5. Recebe o documento em formato Markdown ou PDF
+2. Na primeira interação, é exibida uma mensagem de carregamento com animação visual "Ainda estou acordando..."
+3. Registra suas atividades profissionais
+4. Fornece informações sobre urgência e impacto
+5. Solicita a geração de um Brag Document
+6. Recebe o documento em formato Markdown ou PDF
 
 ## Desenvolvimento Futuro
 
